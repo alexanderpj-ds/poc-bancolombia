@@ -1,0 +1,10 @@
+# ALX fase 2 (E2 variables, L1 para M4/M5). Hipotesis: el calendario detallado (pago 15/fin, pago+1..3, habiles
+# a/desde pago, puentes, vispera/post HABILES, temporadas) mejora a V0 con perdida L1. EDA M4 sabado -40 %;
+# M5 post-festivo +62 %, fin de semana -98 %.
+familia: ml_global
+motor: lgbm
+conjunto: V1
+objetivo: l1
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

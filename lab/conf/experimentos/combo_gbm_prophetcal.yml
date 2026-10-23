@@ -1,0 +1,4 @@
+# Declarado DESPUÉS de ver la primera tabla (post-hoc, se lee con esa reserva): promedio simple de los
+# dos mejores de familias distintas (boosting global + Prophet local con calendario). Pesos iguales, fijos.
+familia: combinacion
+miembros: [gbm_cal, prophet_cal]

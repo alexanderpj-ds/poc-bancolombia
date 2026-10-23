@@ -1,0 +1,4 @@
+# El promedio adoptado en M1 más un tercer miembro clásico (ets_auto), pesos iguales.
+familia: combinacion
+variante_de: combo_gbm_prophetcal
+miembros: [gbm_cal, prophet_cal, ets_auto]

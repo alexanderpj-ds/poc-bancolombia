@@ -1,0 +1,9 @@
+# ALX fase 2 (E2 variables, L1 para M4/M5). Hipotesis: rezagos (mismo dia de semana, medias exponenciales,
+# volatilidad, pendiente, cuantiles) y memoria anual (t-364) mejoran a V1 con perdida L1.
+familia: ml_global
+motor: lgbm
+conjunto: V2
+objetivo: l1
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

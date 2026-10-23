@@ -1,0 +1,9 @@
+# ALX fase 2 (E2 variables, L1 para M4/M5). Hipotesis: perfil propio del fondo (pago, festivo, no habil) e
+# intermitencia (ceros, faltantes, racha de NaN; M4 cobertura 79 %, Pasto 65 %) mejoran a V2 con perdida L1.
+familia: ml_global
+motor: lgbm
+conjunto: V3
+objetivo: l1
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

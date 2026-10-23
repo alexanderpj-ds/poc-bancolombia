@@ -1,0 +1,92 @@
+# conf/model_u1_u2.yml - Parametros del nucleo compartido U1/U2 (ATM M1/M2).
+#
+# Supuestos PARAMETRIZABLES con default documentado (NUNCA se inventa un dato
+# que el banco no entrego). El codigo lee de aqui y, si una clave falta, aplica
+# el default documentado en el modulo correspondiente y lo anota.
+# Fuente: plan.md D1,D3,D7,D8,D9,D11 + supuestos-analiticos.md SUP-01..SUP-06.
+
+# Catalogo de codigos de transaccion (hecho confirmado #7).
+# pagado  = retiros/dispensacion;  cash_in = depositos (solo M2 multifuncional).
+cdgtrn:
+  pagado:  [220, 420, 520]
+  cash_in: [401, 501, 629]
+
+# Horizonte de pronostico: 1-15 sep 2026, dias calendario (SUP-03 / D4).
+horizonte:
+  inicio: 2026-09-01
+  fin: 2026-09-15
+
+# Backtest interno para metricas (D7): el holdout 1-15 sep tiene 0 obs reales,
+# asi que WAPE/MAE/Bias se calculan sobre la ultima ventana del entrenamiento.
+backtest:
+  dias: 15
+
+# M1 dispensador (Anexo B RN-09 a RN-13, RN-34).
+m1:
+  tope_saldo_inicial: 500000000      # COP; cupo operativo = min(cupo del maestro, tope) (RN-09)
+  umbral_agotamiento: 0.08           # RN-34
+  # Politica de provision (decision/policies.py). La provision llena hasta el
+  # cupo (RN-11) el dia en que el saldo proyectado con el pronostico bajaria del 8 % (RN-34).
+  politica:
+    familia: umbral_pronostico_a_cupo
+    margen: 0.0                      # sin holgura: la frontera m0/m25/m50 se mide en el lab (lab/conf/politicas.yml)
+  lead_time_dias: 0                  # RN-11: la provision se aplica antes del pagado del mismo dia
+
+# M2 multifuncional (Anexo B RN-19 a RN-24, RN-30, RN-35): saldo neto, provision hasta el cupo,
+# recoleccion al cierre de lo que pase del cupo. Sin cassette aparte (RN-30).
+m2:
+  umbral_agotamiento: 0.08           # RN-21 / RN-34
+  politica:
+    familia: umbral_pronostico_a_cupo  # se decide con el pronostico neto (pagado - cash_in)
+    margen: 0.0
+  orden_acciones:
+    provision: manana                # hecho #5 / RN-21: provision antes del flujo
+    recoleccion: cierre              # recoleccion despues del flujo
+
+# Modelo de pronostico.
+forecaster:
+  min_obs: 30                        # bajo este umbral -> fallback estacional documentado (D3)
+  fallback: naive_estacional_7
+  # Receta de conf/pronosticadores.yml por modelo y objetivo.
+  # Lo que no se declare usa `prophet` (el pronosticador original).
+  modelo:
+    m1: {pagado: combo_gbm_prophetcal}
+    # Receta de Santiago (interruptores de conf/alx.yml apagados). La fase 2 de ALX habia puesto aqui
+    # cash_in: ml_ens_pond_m2_cash_in; desde la PARTE 7 los champions viven en `modelo_alx`.
+    m2: {pagado: combo_gbm_prophetcal, cash_in: combo_gbm_prophetcal}
+  # ALX PARTE 7 (SUP-39): champions finales de la PARTE 5 (imputacion/resultados/ml/decision_final.csv, escenario
+  # S1 = datos corregidos + V4 "as of", sin imputacion; = models:/poc-daas-ml-<ds>@champion). Solo con el
+  # interruptor `campeones_ml` de conf/alx.yml.
+  modelo_alx:
+    m1: {pagado: campeon_m1}
+    m2: {pagado: campeon_m2_pagado, cash_in: campeon_m2_cash_in}
+
+# Equipos desmontados o inactivos (Anexo B RN-07 y RN-08): pronostico y banda en cero en todo el
+# horizonte y sin provisiones. El cambio de estado sale del maestro de desinstalados; si el codigo tiene dato
+# posterior a la baja se pronostica normal (RN-06, codigo reutilizado).
+inactividad:
+  desinstalados: daas://interim/cp_desinstalados
+  col_fecha: fecha_desinstalacion
+  # Activo: el banco puntua la ausencia con red operando como 0 (RN-08) y RN-07 pide
+  # una prediccion, que puede valer 0. Medido en los datos reales: tras llegar a 15 dias de red sin dato, en los 15
+  # siguientes el equipo reporta el 13 % de los dias en M1 (53 de 75 episodios sin ningun dato) y el 39 % en M2.
+  # El silencio casi siempre dura todo el horizonte: el pronostico central es 0. Se listan en la hoja 04.
+  rn08:                              # complemento: sin dato mientras el resto de la red opera
+    aplicar: true
+    sin_dato_reciente_dias: 15       # igual a lab/conf/evaluacion.yml -> soporte.sin_dato_reciente_dias (= horizonte)
+    # Lista informativa `output/api/silenciosos` (entidades con >= sin_dato_reciente_dias dias de red sin dato,
+    # desinstaladas o no; no cambia pronosticos). `cero` se elige segun la regla con que se trato.
+    textos:
+      cero:
+        RN-07: "cero por RN-07 (desinstalado)"
+        RN-08: "cero por RN-08 (sin dato mientras la red opera)"
+      normal: "pronóstico normal (RN-07: activo en el maestro)"
+
+# Exclusion de metricas RN-07 por cajero (SUP-01 / D8).
+metricas:
+  excluir_rn07_por_cajero: true      # usa processed.__rn07_conflicto
+  # Segunda lectura del backtest (RN-08): se agrega una fila `backtest` con el real rellenado en 0 donde la red
+  # opera dentro del periodo activo del equipo (entre su primer registro y el corte); antes del primer registro no
+  # cuenta (RN-07) y el Anexo C sigue faltante. No cambia el entrenamiento ni la carga. La nota empieza por `RN-08:`.
+  lectura_rn08: true
+  nota_rn08: "RN-08: ausencia con red operando = 0 COP; Anexo C faltante; antes del primer registro excluido"

@@ -1,0 +1,108 @@
+# conf/sources.yml - Registro de fuentes raw -> contratos canonicos (§2.0 / §2.2)
+#
+# Mapea las 19 fuentes reales en disco a los 12 contratos canonicos C-01..C-12.
+# Cuadre: 8 fuentes-unicas + 1 archivo-2-hojas (C-07/C-08) + 10 CSV (C-09) = 19 archivos en raw/
+#         C-01..C-11 (en raw/) + C-12 (fuera de raw/) = 12 contratos.
+#
+# Nombres de archivo REALES en disco (ver reports/u0_profiling.md).
+# Las rutas 'archivo' son relativas a local.root (conf/paths.yml); C-12 vive fuera de raw/.
+# NO leer estos archivos en tests (datos confidenciales de Bancolombia).
+
+raw_root: raw          # subcarpeta de local.root donde viven las fuentes raw
+anexos_root: anexos    # subcarpeta de local.root para anexos fuera de raw/
+
+contratos:
+
+  C-01:
+    dataset: txn_cajeros
+    archivo: raw/txn_cajeros_train.csv
+    lector: csv
+    separador: ","
+    encoding: utf-8
+    # fecha dd/mm/yyyy
+
+  C-02:
+    dataset: cp_historico
+    archivo: raw/cp_historico.xlsx
+    lector: excel
+    hoja: cp_historico_enmascarado
+    # 26 columnas, snapshots
+
+  C-03:
+    dataset: cp_desinstalados
+    archivo: raw/cp_desinstalados_enmascarados.xlsx
+    lector: excel
+    hoja: Hoja1
+    # llave real: COD
+
+  C-04:
+    dataset: txc_suc
+    archivo: raw/txc_suc_train.csv
+    lector: csv
+    separador: ","
+    encoding: utf-8
+    # fecha dd/mm/yyyy
+
+  C-05:
+    dataset: oficinas
+    archivo: raw/Oficinas.xlsm
+    lector: excel
+    hoja: SUCURSALES
+
+  C-06:
+    dataset: maestro_sucursales
+    archivo: raw/maestro_sucursales_hist_enmascarado.xlsx
+    lector: excel
+    hoja: Sheet1
+    # snapshots
+
+  C-07:
+    dataset: cbr
+    archivo: raw/CLIENTES_Y_CBR.xlsx
+    lector: excel
+    hoja: CBR
+
+  C-08:
+    dataset: clientes
+    archivo: raw/CLIENTES_Y_CBR.xlsx   # mismo archivo que C-07, hoja distinta
+    lector: excel
+    hoja: Clientes
+
+  C-09:
+    dataset: disponibles
+    lector: csv
+    separador: ";"
+    encoding: utf-8
+    # fecha yyyy-mm-dd; coercion de denominacion. 10 CSV concatenados.
+    archivos:
+      - raw/TRANSPORTADORA_001_disponibles_2024.csv
+      - raw/TRANSPORTADORA_001_disponibles_2025.csv
+      - raw/TRANSPORTADORA_001_disponibles_2026.csv   # encoding utf-8-sig (BOM)
+      - raw/TRANSPORTADORA_002_disponibles_2024.csv
+      - raw/TRANSPORTADORA_002_disponibles_2025.csv
+      - raw/TRANSPORTADORA_002_disponibles_2026.csv
+      - raw/TRANSPORTADORA_003_disponibles_2024.csv
+      - raw/TRANSPORTADORA_003_disponibles_2025.csv
+      - raw/TRANSPORTADORA_003_disponibles_2026.csv
+      - raw/TRANSPORTADORA_004_disponibles_2026.csv
+    overrides_encoding:
+      raw/TRANSPORTADORA_001_disponibles_2026.csv: utf-8-sig   # BOM
+
+  C-10:
+    dataset: intercambios
+    archivo: raw/Historico_Intercambios.xlsx
+    lector: excel
+    hoja: Sheet1
+    # formato ancho -> despivotar; col '1000' duplicada
+
+  C-11:
+    dataset: consolidado_ventas
+    archivo: raw/Consolidado_ventas.xlsx
+    lector: excel
+    hoja: Consolidado_ciudades
+
+  C-12:
+    dataset: costos_anexo_e
+    # Fuera de raw/; nombre con espacio. Ruta via config, NO hardcodeada.
+    archivo: anexos/Anexos/Anexo_E_Parametros costos.xlsx
+    lector: excel

@@ -1,0 +1,291 @@
+# conf/export_anexo_d.yml - Configuracion de la exportacion del Anexo D (U7).
+#
+# U7 es el ULTIMO entregable del componente analitico: el Excel que el banco
+# recibe y evalua. Se genera SOBRE la plantilla oficial (preservando formato),
+# borrando los ejemplos PROVEEDOR_DEMO y poblando las 5 hojas obligatorias con
+# los datos reales de la PoC (id_proveedor='PRAGMA'), leidos de output/api/*.
+# NUNCA se inventa un dato (ver src/daas/publish/anexo_d/ y docs/supuestos.md).
+
+# id del proveedor (constante en TODAS las filas de las 5 hojas obligatorias).
+id_proveedor: PRAGMA
+
+# Ruta de la plantilla oficial, relativa a local.root (conf/paths.yml).
+# Coherente con conf/sources.yml::anexos_root (datos confidenciales, gitignored).
+plantilla: anexos/Anexos/Anexo_D_Plantilla_entrega_proveedor_POC.xlsx
+
+# Salida del entregable (daas://; en local degrada a data/output/anexo_d/).
+# Nombre EXIGIDO por el pliego seccion 9: POC_Efectivo_<NOMBRE_PROVEEDOR>.xlsx.
+# NO se versiona en git (datos confidenciales bajo data/).
+salida: daas://output/anexo_d/POC_Efectivo_PRAGMA.xlsx
+
+# Corte del horizonte (RN-69): base de horizonte_dias y fecha_corte de la hoja 05.
+corte: 2026-08-31
+
+# Horizonte de pronostico (1-15 sep 2026, dias corridos).
+horizonte:
+  inicio: 2026-09-01
+  fin: 2026-09-15
+
+# --------------------------------------------------------------------------- #
+# Vocabulario, reglas de presentacion y textos de la hoja 04 como DATO         #
+# (src/daas/publish/anexo_d/ y publish/validate_xlsx.py lo leen; ningun texto #
+# ni umbral se escribe en el codigo).                                          #
+# --------------------------------------------------------------------------- #
+
+# Vocabulario de las listas de la plantilla (columnas de texto con lista de validacion).
+vocabulario:
+  dia_habil: {habil: "Sí", no_habil: "No"}   # claves no-booleanas: YAML 1.1 lee `no` como False
+  origen_presion: estimada          # la presion se estima de los pronosticos M1-M5 (SUP-09/SUP-12)
+  no_aplica: "No aplica"
+
+# Nivel de riesgo de la hoja 02 sobre el saldo DESPUES de la accion. `ocupacion` = saldo despues / cupo.
+# Se evalua la primera banda que cumple. Decision de Pragma (el pliego no fija bandas; ver supuestos.md).
+nivel_riesgo:
+  bandas:
+    - {nivel: alto, ocupacion_menor_que: 0.08}    # bajo el umbral de RN-34
+    - {nivel: alto, ocupacion_mayor_que: 1.0}     # sobre el cupo
+    - {nivel: medio, ocupacion_menor_que: 0.16}   # menos del doble del umbral
+  por_defecto: bajo
+  respaldo_alertas: {critico: alto, alerta: medio}   # sin saldo o cupo se usa la peor severidad de `alertas`
+
+# Filas `sin_accion` de la hoja 02 (RN-02: toda entidad de la hoja 01 tiene al menos una fila).
+sin_accion:
+  explicacion_con_alerta: >-
+    Sin accion en el horizonte: el plan no pide provision ni recoleccion. Hay alerta de {severidad} en el
+    pronostico, que no llega a exigir una accion.
+  explicacion_sin_alerta: >-
+    Sin accion en el horizonte: con el pronostico, el saldo se mantiene entre el umbral de agotamiento y el
+    cupo sin necesidad de provision ni recoleccion.
+  regla: "RN-02: una fila sin_accion"
+
+# Etiquetas de `regla` del contrato de M3 (RN-40 y RN-41); sin etiqueta se usa la clave.
+regla_m3:
+  saldo_previsto_bajo_reserva: "RN-40: riesgo de faltante (saldo previsto bajo la reserva)"
+  exceso_sobre_cupo: "RN-41: riesgo de exceder el cupo"
+  efectivo_ocioso_sobre_techo: "RN-41: efectivo ocioso sobre el techo"
+  apertura_bajo_umbral: "RN-40: apertura bajo el umbral (regla vigente del banco)"
+
+# Costo 0 declarado (RN-04A): equipo administrado por la sucursal (admon = SUC) sin tarifa TDV.
+costo_cero_sucursal:
+  admon: SUC
+  texto: "Sin tarifa TDV (administrado por la sucursal): costo 0 declarado."
+  texto_tdv_sin_tarifa: "Sin tarifa en el Anexo E para esta transportadora: costo no estimado."
+
+# Hoja 03: segmentos y KPI calculados de las salidas del horizonte.
+hoja_03:
+  semana_dias: 7
+  tolerancia_cop: 1               # diferencia maxima aceptada en la identidad de RN-71
+  segmento_semana: "Semana {n} ({desde:%d/%m/%Y} a {hasta:%d/%m/%Y})"   # semana de calendario; fechas con dato
+  segmento_global: Global
+  lectura_rn08:                     # filas extra de `metricas` publicadas por U1/U2 con la lectura del banco
+    prefijo_nota: "RN-08:"
+    rotulo_metrica: "{metrica} (lectura RN-08)"
+  severidad_agotamiento: critico    # severidad de `alertas` que cuenta como agotado (nivel 0)
+  metodologia_plan: "Simulacion del plan del horizonte con el pronostico central"
+  kpi:
+    tasa_agotamiento:
+      metrica: "Tasa de agotamiento ATM-dia del plan publicado (contra el pronostico)"
+      unidad: porcentaje
+      tipo: operativa
+      comentario: "Fraccion de ATM-dia del horizonte en que el pronostico central supera el saldo tras el plan: {n_agotados} de {n_total}. Es cero por construccion, porque el plan cubre su propio pronostico; la medida contra el real es la del backtest de la politica (filas siguientes)."
+    remanente_antes_provision:
+      metrica: "Promedio % saldo antes de provision del plan publicado (contra el pronostico)"
+      unidad: "porcentaje del cupo"
+      tipo: operativa
+      comentario: "Promedio de saldo antes de la provision sobre el cupo operativo, en {n} provisiones del horizonte, con el saldo que proyecta el pronostico central. La medida contra el real es la del backtest de la politica."
+    costo_total:
+      metrica: "Costo total estimado del plan"
+      unidad: COP
+      tipo: costo
+      comentario: "Suma de costo_estimado_cop del plan (Anexo E). {n_sin_tarifa} acciones sin tarifa cuentan 0."
+    costo_almacenamiento:
+      metrica: "Costo de almacenamiento del saldo de los fondos en el horizonte"
+      unidad: COP
+      tipo: costo
+      comentario: "Saldo de cierre de cada fondo-denominacion-dia por la tarifa de almacenamiento del Anexo E de su transportadora (RN-78, RN-79). No es una accion: no aparece en costo_estimado_cop de la hoja 05 ni se suma al costo del plan; entra como criterio al comparar conservar contra actuar."
+    consistencia_balance:
+      metrica: "Consistencia del balance de fondos"
+      unidad: fraccion
+      tipo: operativa
+      comentario: "Fraccion de filas fondo-denominacion-dia que cumplen la identidad de RN-71; diferencia maxima {dif_max} COP."
+  # number_format de valor_metrica segun la unidad de la fila (los mismos de la plantilla del banco).
+  formato_valor:
+    porcentaje: "0.0%"
+    "porcentaje del cupo": "0.0%"
+    fraccion: "0.0%"
+    COP: "#,##0_);(#,##0)"
+  # Backtest de la politica de M1 contra el saldo real (registro en resultados_traspaso/corridas.jsonl;
+  # intervalos por remuestreo de episodios). Son resultados medidos, no salidas del horizonte.
+  backtest_politica:
+    periodo_desde: "2025-03-01"
+    periodo_hasta: "2026-05-15"
+    metodologia: "Backtest de la politica: 13 episodios historicos de 15 dias con el saldo real, lead time 0"
+    filas:
+      - modelo: m1
+        kpi: tasa_agotamiento_backtest
+        metrica: "Tasa de agotamiento ATM-dia (backtest de la politica, lectura RN-11)"
+        valor: 0.0337
+        unidad: porcentaje
+        tipo: operativa
+        comentario: "Cada provision llena hasta el cupo con el saldo real del dia (RN-11). IC 95 %: 2,0-5,3 %. Menos agotados que la regla anterior en los 13 episodios."
+      - modelo: m1
+        kpi: tasa_agotamiento_montos_publicados
+        metrica: "Tasa de agotamiento ATM-dia (backtest, montos publicados sin ajustar)"
+        valor: 0.066
+        unidad: porcentaje
+        tipo: operativa
+        comentario: "Sensibilidad: se entrega el monto publicado (cupo menos saldo proyectado) aunque el saldo real difiera."
+      - modelo: m1
+        kpi: tasa_agotamiento_regla_anterior
+        metrica: "Tasa de agotamiento ATM-dia (backtest, regla vigente del banco)"
+        valor: 0.1289
+        unidad: porcentaje
+        tipo: operativa
+        comentario: "Regla vigente en los mismos 13 episodios. IC 95 %: 10,2-15,8 %. Diferencia pareada contra la politica: -9,5 puntos (IC 95 %: -10,7 a -8,1)."
+      - modelo: m1
+        kpi: remanente_backtest
+        metrica: "Promedio % saldo antes de provision (backtest de la politica)"
+        valor: 0.2456
+        unidad: "porcentaje del cupo"
+        tipo: operativa
+        comentario: "IC 95 %: 20,5-29,2 %; meta de RN-12: 22 %. El exceso lo concentran dic-2025 (43,6 %) y abr-2026 (33 %)."
+
+# Textos de la hoja 04. Placeholders entre llaves se llenan de la configuracion y las salidas.
+hoja_04:
+  max_codigos: 20                   # codigos de equipos silenciosos que se listan por modelo
+  decision_m3: >-
+    Politica diferenciada por sucursal (RN-40, RN-41): provision cuando el saldo previsto baja de la reserva y
+    recoleccion de lo que pasa del techo; la regla de cada accion queda en la hoja 02.
+  decision_m1:
+    umbral_pronostico_a_cupo: >-
+      Politica vigente ({politica}): se pide provision el dia en que el saldo proyectado con el pronostico baja
+      del {umbral:.0%} del cupo operativo, con margen de {margen:.0%} sobre el pronostico, y se llena al cupo
+      en la fecha indicada (RN-11, lead time {lead} dias, RN-34). Los montos fijos se miden solo como
+      sensibilidad, no se publican.
+  decision_m1_general: "Provision hasta el cupo operativo (RN-09, RN-11) cuando el saldo proyectado baja del umbral (RN-34)."
+  importancia:
+    texto: "Medido en el backtest, por grupo de variables: puntos de WAPE que se pierden al barajar el grupo. {grupos}. {alcance}"
+    modelo_publicado: "Mide el modelo publicado."
+    componente: "Mide el componente de boosting del promedio publicado."
+  limitaciones_adicionales:
+    m1: >-
+      Los {n_silenciosos_m1} cajeros sin dato reciente en la red ({codigos_m1}) se publican con el tratamiento que
+      declara el informe de silenciosos: {tratamientos}
+    m2: >-
+      Los {n_silenciosos_m2} multifuncionales sin dato reciente ({codigos_m2}) se publican con el tratamiento que
+      declara el informe de silenciosos: {tratamientos}
+    rn08: >-
+      El entrenamiento ignora la ausencia de registro (NaN) porque es una caida imposible de anticipar; entrenar con
+      esos ceros empeoro el WAPE. El banco puntua con RN-08 (ausencia con la red operando = 0 COP), asi que el error
+      esperado es la lectura RN-08. {cifras}
+    rn08_cifras: "WAPE de {objetivo}: {wape_base:.4f} en la lectura de entrenamiento, {wape_rn08:.4f} en la lectura RN-08."
+    cifras_objetivo: "Error de {objetivo} en la ventana de backtest: WAPE {wape:.3f}, sesgo {sesgo:+.1%}, {n_obs} observaciones."
+    silenciosos_ausentes: "Informe de equipos silenciosos no disponible en esta corrida."
+    anexo_c: >-
+      Dias del Anexo C sin dato en toda la red: {n_dias} ({bloques}). Quedan nulos (no se imputan): no entran a las
+      metricas (SUP-02) y los rezagos y medias moviles se calculan solo con los dias con dato. El bloque mas largo dura
+      {bloque_max} dias; el efecto de ese bloque sobre el pronostico no se midio por separado.
+    # ALX (interruptor `supuestos_alx` de conf/alx.yml): version corregida del texto anterior.
+    anexo_c_alx: >-
+      Dias del Anexo C sin dato en toda la red: {n_dias} ({bloques}). Quedan nulos, nunca en cero: no entran a las
+      metricas (SUP-02) y los rezagos y medias moviles se calculan solo con los dias con dato. El pipeline publicado no
+      imputa; si la imputacion se adopta, vive en los modelos registrados del laboratorio, solo para entrenar y nunca
+      para evaluar (SUP-36). El bloque mas largo dura {bloque_max} dias; el efecto de ese bloque sobre el pronostico no
+      se midio por separado.
+    # ALX (oct-2026): decisiones del laboratorio de ML que respaldan el modelo de M1-M5 (SUP-27, SUP-28, SUP-30 a
+    # SUP-35 y SUP-38 de docs/supuestos.md). Se agrega a las limitaciones de M1-M5.
+    laboratorio_ml: >-
+      Validacion del laboratorio: la regla de adopcion R1-R5 se declaro antes de medir y se aplico sin cambios
+      (SUP-30), con k = 2 errores estandar para variantes, afinados y ensambles que contienen la referencia, por la
+      busqueda multiple (SUP-31); los ponderados usan pesos congelados con los 16 cortes de seleccion (SUP-32) y el
+      modelo registrado lleva empaquetado su contexto, de modo que reproduce lo evaluado (SUP-33). En el laboratorio, la
+      entidad con todos sus reales en cero en la ventana sale solo del WAPE agregado y se reporta aparte (SUP-27; la
+      hoja 03 tambien lo aplica y lo anota en el comentario), el maestro de cajeros es el vigente en cada corte, nunca uno
+      posterior (SUP-28) y el duplicado del
+      13-may-2026 y los montos corruptos se corrigen como dato, no se imputan (SUP-35). La repeticion con datos
+      corregidos cubre solo a los finalistas (SUP-38).
+    demanda_censurada: >-
+      El objetivo es lo dispensado: cuando el cajero se agota la demanda real queda censurada y no se reconstruye, porque
+      no hay saldo diario observado; el pronostico puede quedar bajo la demanda en cajeros que se agotan seguido (SUP-34).
+    nivel_riesgo: >-
+      nivel_riesgo de la hoja 02 es el riesgo residual despues de la accion: bandas de ocupacion sobre el saldo despues de
+      actuar (alto bajo 8 % del cupo o sobre el cupo, medio bajo 16 %, bajo el resto). Como la accion lleva el saldo al rango
+      operativo, casi todas las filas quedan en bajo; el riesgo antes de actuar esta en porcentaje_ocupacion_antes y en las
+      alertas.
+    m3: >-
+      M3 aplica la politica diferenciada por sucursal (reserva segun la variabilidad neta, tope {reserva_max:.0%} del
+      cupo; provision hasta la reserva mas {dias_cobertura} dias de salidas medias; recoleccion sobre la reserva mas
+      {dias_techo} dias), con {historia_dias} dias de historia. Con menos de {min_obs} dias validos aplica la regla vigente
+      del banco, sin pronostico. El primer dia del horizonte concentra la recoleccion del exceso acumulado: {dia1_n} acciones por
+      {dia1_monto} COP. El techo de {dias_techo} dias es una eleccion de Pragma entre 6, 10 y 15, con criterio escrito antes de medir: mantiene los
+      dias agotados de la regla vigente, reduce el efectivo ocioso (RN-40, RN-44) y es el de menor costo en la ventana.
+    m6: >-
+      Balance sin traslado a T+1: el traslado se aplica el mismo dia en origen y destino (RN-74). Minimos y maximos por
+      percentiles del historico (SUP-10). El desbalance persistente entre fondos y la mezcla por denominacion se toman del
+      historico sin corregir (SUP-09, SUP-10). BanRep queda habilitado solo para Cali (`banrep.ciudades_habilitadas`, RN-75),
+      supuesto de Pragma. El beneficio de la venta usa la tasa observada en consolidado_ventas (SUP-23, no garantizada) y la
+      venta no tiene costo en el Anexo E. El costo de almacenamiento se reporta aparte del costo de las acciones. El
+      nivel_riesgo de la hoja 05 es el residual despues de actuar, con bandas propias por minimo y maximo (alto si el saldo
+      queda bajo el 50 % del minimo, medio si conserva un excedente sobre el maximo, bajo el resto); las alertas de M6 miden
+      el riesgo antes de actuar. El factor movil de correccion del total se aplica solo a M5 (SUP-20). Las cifras de
+      explicacion_funcional salen del balance exacto; las columnas en COP son enteras y pueden diferir en 1 COP.
+    # ALX (interruptor `supuestos_alx` de conf/alx.yml): version corregida del texto anterior.
+    m6_alx: >-
+      Balance sin traslado a T+1: el traslado se aplica el mismo dia en origen y destino (RN-74). Los disponibles se
+      corrigen al cargarlos (SUP-29): se excluyen las filas TOTAL de las transportadoras 002 y 003 (subtotal que
+      duplicaba el saldo) y la transportadora 001 se pasa de cantidad de billetes a pesos hasta el 17-jul-2026, cambio
+      detectado en los datos. Para minimos y maximos, los dias con valor en blanco (23 dias de la 004 en 50.000) y los
+      dias con dos formatos de reporte (30 fondo-dias de la 002 y la 003) se tratan como faltantes, nunca como cero ni
+      sumando dos reportes. El saldo inicial no cambia y 10 de los 36 estados de riesgo al 31-ago si. Minimos y maximos por
+      percentiles del historico corregido (SUP-10). La mezcla por denominacion (SUP-09) se calcula con los disponibles
+      corregidos, sin ajustar el perfilado ni el desbalance persistente entre fondos; en los 30 fondo-dias con dos formatos
+      suma los dos reportes y los blancos de la 004 cuentan como 0 (salvedad de SUP-29). BanRep queda habilitado solo para Cali (`banrep.ciudades_habilitadas`, RN-75),
+      supuesto de Pragma. El beneficio de la venta usa la tasa observada en consolidado_ventas (SUP-23, no garantizada) y la
+      venta no tiene costo en el Anexo E. El costo de almacenamiento se reporta aparte del costo de las acciones. El
+      nivel_riesgo de la hoja 05 es el residual despues de actuar, con bandas propias por minimo y maximo (alto si el saldo
+      queda bajo el 50 % del minimo, medio si conserva un excedente sobre el maximo, bajo el resto); las alertas de M6 miden
+      el riesgo antes de actuar. El factor movil de correccion del total se aplica solo a M5 (SUP-20). Las cifras de
+      explicacion_funcional salen del balance exacto; las columnas en COP son enteras y pueden diferir en 1 COP.
+  # ALX (oct-2026): procedencia de las salidas (SUP-24, SUP-25, SUP-26). Se agrega a las limitaciones de todos los
+  # modelos. El Excel no lleva la columna origen_dato (hojas fijas); la llevan los contratos de output/api/*.
+  procedencia: >-
+    Procedencia de los datos: los contratos de salida marcan cada fila con origen_dato. Los pronosticos de M1-M5 son
+    PROYECTADO, el balance de M6 es SIMULADO y las recomendaciones, alertas y metricas son ESTIMADO (SUP-24, SUP-25).
+    Ninguna fila del horizonte 1-15 sep 2026 es REAL, porque es posterior al corte del 31-ago (SUP-26). Este Excel no
+    lleva la columna: la procedencia se declara aqui.
+  # ALX PARTE 7 (SUP-36, SUP-39, SUP-40): champions finales, imputacion no adoptada y anexos de la corrida.
+  entrega_alx: >-
+    Entrega con los champions finales del laboratorio (SUP-39): M1 LightGBM V4 Tweedie, M2 pagado y cash-in y M3 entradas
+    ponderados con pesos congelados, M3 salidas LightGBM V1 L1, M4 el combinado de Santiago (ningun candidato cumplio la
+    regla) y M5 media de tres LightGBM; los mismos que models:/poc-daas-ml-<dataset>@champion, entrenados con los datos
+    corregidos (SUP-35) y el maestro "as of" (SUP-28). La imputacion de faltantes se evaluo y no se adopto en ningun
+    modelo: el pipeline no imputa y los dias del Anexo C siguen nulos, nunca en cero (SUP-36). La plantilla del Anexo D
+    usada es la original del banco (Anexo_D_Plantilla_entrega_proveedor_POC.xlsx), que trae 6 hojas (01-05 y
+    06_Diccionario_Campos): no incluye 00_Instrucciones, GUIA_Descripcion_Solucion ni 07_Catalogo_Ejemplos que menciona
+    el pliego, pregunta abierta al banco (P25); las tarifas son las del Anexo E original (SUP-40).
+  decisiones_pragma: >-
+    Decisiones de Pragma: lead time {lead} dia(s) (RN-11: la provision entra al inicio del dia objetivo; el banco confirmo que no
+    fija otro, y 1 dia se mide como sensibilidad); sin tope de visitas (RN-15), cada provision justificada por RN-34; RN-08 aplicada al pronostico de los equipos silenciosos (ver su tratamiento); M5 se publica sin corregir y su total lo corrige M6 con factor movil acotado.
+    Plan de 15 dias fijo, medido como lo pide el pliego (13 episodios historicos, lead time 0): 3,4 % de dias agotados (IC 95 % por
+    remuestreo de episodios: 2,0-5,3 %) contra 12,9 % de la regla anterior; menos agotados en los 13 episodios. Remanente
+    promedio antes de provision de 24,6 % del cupo (IC 95 %: 20,5-29,2 %), sobre el 22 % de RN-12 aunque el intervalo lo
+    incluye (sobre su propio pronostico, el plan proyecta 22,3 % en esos episodios). El exceso lo concentran dic-2025 (43,6 %) y abr-2026 (33 %); 7 de los 13
+    episodios quedan en 22,9 % o menos. Subir el margen baja los agotados pero sube el remanente (margen 25 %: 30,9 %): las
+    dos metas de RN-12 se oponen, por eso se reporta la frontera. El 3,4 % supone que cada provision llena hasta el cupo con el
+    saldo real del dia; si se entregan los montos publicados sin ajustarlos (cupo menos saldo proyectado, RN-11), los dias
+    agotados suben a 6,6 %.
+
+# Validacion (publish/validate_xlsx.py): columnas que deben ser enteras y obligatorias por hoja.
+validacion:
+  enteras:
+    "01_Predicciones": [valor_pronosticado_cop]
+    "02_Plan_Operativo": [monto_sugerido_cop, cupo_entidad_cop, saldo_antes_accion_cop, costo_estimado_cop]
+    "03_Metricas_Desarrollo": []
+    "05_M6_Fondos": [denominacion_cop, disponibilidad_inicial_cop, ingresos_proyectados_cop, salidas_proyectadas_cop,
+                     nivel_objetivo_min_cop, nivel_objetivo_max_cop, monto_sugerido_cop, costo_estimado_cop]
+  obligatorias:
+    "01_Predicciones": [id_proveedor, modelo, ciudad, id_entidad, variable_objetivo, fecha_objetivo, valor_pronosticado_cop, nivel_agregacion]
+    "02_Plan_Operativo": [id_proveedor, modelo, id_entidad, accion_sugerida, fecha_accion_sugerida, monto_sugerido_cop, nivel_riesgo, regla_aplicada, explicacion_funcional]
+    "03_Metricas_Desarrollo": [id_proveedor, modelo, variable_o_kpi_evaluado, metrica, valor_metrica, unidad, segmento]
+    "05_M6_Fondos": [id_proveedor, fondo_id, fecha_objetivo, denominacion_cop, accion_sugerida, nivel_riesgo, monto_sugerido_cop]
+    "04_Descripcion_Solucion": [id_proveedor, modelo, algoritmo_o_enfoque, limitaciones_identificadas, supuestos]

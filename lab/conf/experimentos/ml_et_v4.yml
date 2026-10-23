@@ -1,0 +1,8 @@
+# ALX fase 2 (E4 motor, FEAT-007 paso 9; V* elegido en el cribado). Hipotesis: ExtraTrees sobre V*: cortes aleatorios, aun menos varianza; imputa dentro del fit.
+familia: ml_global
+motor: et
+conjunto: V4
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

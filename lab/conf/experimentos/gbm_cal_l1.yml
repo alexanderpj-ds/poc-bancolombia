@@ -1,0 +1,9 @@
+# E3: igual a gbm_cal con pérdida L1 (el WAPE lo minimiza la mediana).
+grupos: [base, calendario, pago, dom_entidad]
+perdida: absolute_error
+familia: gbm_global
+variante_de: gbm_cal      # misma hipótesis, otra pérdida
+paso_dias: 5              # un pseudo-origen de entrenamiento cada 5 días
+meses_entrenamiento: 18
+dias_pago: [15, fin]      # se corren al día hábil anterior
+hgb: {max_iter: 300, learning_rate: 0.06, max_leaf_nodes: 31, min_samples_leaf: 50}

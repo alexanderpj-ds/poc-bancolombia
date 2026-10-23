@@ -1,0 +1,266 @@
+openapi: 3.1.0
+info:
+  title: Data API - Efectivo - Service Plan Inputs (TARGET CONTRACT)
+  description: >
+    TARGET contract to be handed over to the Data team for Flow C (Service
+    Plan). These operations do NOT exist yet: gestion-ms consumes them to obtain
+    the simulated balance trajectory and the alert triggers it exposes without
+    recomputing (decision of 18-Oct). Until the real API exists, gestion-ms uses
+    a contractual mock switchable via the balance-source configuration, without
+    changing the use cases. Scope: simulated balance only. The model rules
+    (M1/M2/M3), the Anexo E costs and the decision states are owned by
+    gestion-ms and are NOT part of this contract. All operations are traceable
+    to HU-07/HU-08 and include success, no-data and error scenarios. Internal
+    envelope with 'message'. Transaction-Id propagated end to end.
+  version: 0.1.0
+  contact:
+    name: Arquitectura de Soluciones - PoC Efectivo
+servers:
+  - url: https://{dataApiHost}
+    description: Data API (PENDING - not yet provisioned)
+    variables:
+      dataApiHost:
+        default: datos-efectivo.pendiente.example.com
+tags:
+  - name: simulated-balance
+    description: Simulated balance trajectory inputs per entity (sourced by gestion-ms)
+paths:
+  /datos-efectivo/v1/simulated-balance/plan:
+    get:
+      tags: [simulated-balance]
+      summary: Plan-level simulated balance inputs
+      description: >
+        Returns, per entity (city/model), the base simulated balance trajectory
+        and the alert triggers for a given run/cut-off/scenario, with units,
+        no-registry days and errors. Consumed by gestion-ms to build the
+        consolidated plan (HU-07). gestion-ms applies the M1/M2/M3 rules and
+        Anexo E costs on top of these inputs; it does not ask the Data team for
+        rules or costs.
+      operationId: getPlanSimulatedBalance
+      parameters:
+        - $ref: '#/components/parameters/TransactionIdHeader'
+        - name: ciudad
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/Ciudad' }
+        - name: modelo
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/ModeloPlan' }
+        - name: corrida
+          in: query
+          required: true
+          schema: { type: string, example: "0007" }
+        - name: corte
+          in: query
+          required: true
+          schema: { type: string, format: date, example: "2026-08-31" }
+        - name: escenario
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Simulated balance inputs available
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PlanBalanceResponse' }
+        '204':
+          description: No data for the given filters (no-data scenario)
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /datos-efectivo/v1/simulated-balance/entity/{entidadId}:
+    get:
+      tags: [simulated-balance]
+      summary: Entity-level simulated balance trajectory
+      description: >
+        Returns the simulated balance trajectory before/after against the quota,
+        the crossing day and the evaluated threshold, for a run/cut-off/scenario.
+        Consumed by gestion-ms for the entity detail (HU-08). gestion-ms exposes
+        it without recomputation.
+      operationId: getEntitySimulatedBalance
+      parameters:
+        - $ref: '#/components/parameters/TransactionIdHeader'
+        - name: entidadId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: corrida
+          in: query
+          required: true
+          schema: { type: string }
+        - name: corte
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: escenario
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Entity trajectory available
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EntityBalanceResponse' }
+        '204':
+          description: No data for the entity (no-data scenario)
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+components:
+  parameters:
+    TransactionIdHeader:
+      name: Transaction-Id
+      in: header
+      required: true
+      schema: { type: string }
+      description: Correlation id propagated from the BFF through gestion-ms
+  schemas:
+    Ciudad:
+      type: string
+      enum: [CALI, PASTO, IPIALES]
+    ModeloPlan:
+      type: string
+      enum: [cajeros, multifuncionales, sucursales]
+    TipoDato:
+      type: string
+      enum: [OBSERVADO, PROYECTADO, SIMULADO, ESTIMADO, SIN_REGISTRO]
+    AlertaTrigger:
+      type: object
+      additionalProperties: false
+      description: >
+        Alert trigger derived from the simulated balance. The A-nnn screen code is NOT part of
+        this contract: gestion-ms owns and associates it (ver pendientes NP-09).
+      required: [tipo, fechaCritica, montoEnRiesgo]
+      properties:
+        tipo: { type: string, minLength: 1, example: "SALDO_BAJO_UMBRAL" }
+        fechaCritica: { type: string, format: date }
+        montoEnRiesgo: { type: integer, format: int64, minimum: 0 }
+    SaldoPoint:
+      type: object
+      additionalProperties: false
+      required: [fecha, saldoAntes, saldoDespues, tipoDato]
+      properties:
+        fecha: { type: string, format: date }
+        saldoAntes: { type: integer, format: int64 }
+        saldoDespues: { type: integer, format: int64 }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    EntidadBalance:
+      type: object
+      additionalProperties: false
+      required: [entidadId, modelo, ciudad, cupo, serie, diaCruce, diasSinRegistro, alertas]
+      description: >
+        Simulated balance trajectory by entity. The model threshold/band (8% M1/M2, 25%/85% M3)
+        is NOT part of this contract: it is a business rule owned by gestion-ms (ver pendientes
+        NP-08). Data provides only the raw simulated balance and the crossing day it computed.
+      properties:
+        entidadId: { type: string, minLength: 1 }
+        modelo: { $ref: '#/components/schemas/ModeloPlan' }
+        ciudad: { $ref: '#/components/schemas/Ciudad' }
+        cupo: { type: integer, format: int64, minimum: 0 }
+        serie:
+          type: array
+          items: { $ref: '#/components/schemas/SaldoPoint' }
+        diaCruce:
+          type: [string, "null"]
+          format: date
+          description: "Day the balance crosses the threshold; null when there is no crossing"
+        diasSinRegistro:
+          type: array
+          items: { type: string, format: date }
+        alertas:
+          type: array
+          items: { $ref: '#/components/schemas/AlertaTrigger' }
+    PlanBalanceData:
+      type: object
+      additionalProperties: false
+      required: [entidades, corrida, corte, unidad]
+      properties:
+        entidades:
+          type: array
+          items: { $ref: '#/components/schemas/EntidadBalance' }
+        corrida: { type: string, minLength: 1 }
+        corte: { type: string, format: date }
+        escenario:
+          type: [string, "null"]
+          description: "Scenario id; null when the default scenario applies"
+        unidad: { type: string, enum: [COP], example: "COP" }
+    PlanBalanceResponse:
+      type: object
+      additionalProperties: false
+      required: [statusCode, status, message, data, timestamp, transactionId]
+      properties:
+        statusCode: { type: string, enum: ["200"], example: "200" }
+        status: { type: string, enum: [SUCCESS], example: "SUCCESS" }
+        message: { type: string, minLength: 1, example: "OK" }
+        data: { $ref: '#/components/schemas/PlanBalanceData' }
+        timestamp: { type: string, format: date-time }
+        transactionId: { type: string, minLength: 1 }
+    EntityBalanceData:
+      type: object
+      additionalProperties: false
+      required: [entidad, corrida, corte, unidad]
+      properties:
+        entidad: { $ref: '#/components/schemas/EntidadBalance' }
+        corrida: { type: string, minLength: 1 }
+        corte: { type: string, format: date }
+        escenario:
+          type: [string, "null"]
+          description: "Scenario id; null when the default scenario applies"
+        unidad: { type: string, enum: [COP], example: "COP" }
+    EntityBalanceResponse:
+      type: object
+      additionalProperties: false
+      required: [statusCode, status, message, data, timestamp, transactionId]
+      properties:
+        statusCode: { type: string, enum: ["200"], example: "200" }
+        status: { type: string, enum: [SUCCESS], example: "SUCCESS" }
+        message: { type: string, minLength: 1, example: "OK" }
+        data: { $ref: '#/components/schemas/EntityBalanceData' }
+        timestamp: { type: string, format: date-time }
+        transactionId: { type: string, minLength: 1 }
+    ProblemDetails:
+      type: object
+      description: RFC 7807 problem detail (internal variant, includes message)
+      required: [type, title, status, code, message, transactionId, timestamp]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, example: "NOTFOUND-404" }
+        message: { type: string }
+        transactionId: { type: string }
+        timestamp: { type: string, format: date-time }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [field, reason]
+            properties:
+              field: { type: string }
+              reason: { type: string }
+  responses:
+    BadRequest:
+      description: Invalid or missing input
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    NotFound:
+      description: Resource not found for the given filters
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    InternalError:
+      description: Unhandled server error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    GatewayTimeout:
+      description: Upstream source did not respond in time
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }

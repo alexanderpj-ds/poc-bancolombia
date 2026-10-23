@@ -1,0 +1,4 @@
+# El promedio adoptado en M1 más un tercer miembro clásico (theta_opt), pesos iguales.
+familia: combinacion
+variante_de: combo_gbm_prophetcal
+miembros: [gbm_cal, prophet_cal, theta_opt]

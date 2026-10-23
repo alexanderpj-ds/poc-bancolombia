@@ -1,0 +1,13 @@
+# ALX fase 2 (E5 Optuna, FEAT-007 paso 9). LightGBM V4 l2 afinado con Optuna (TPE seed 0, 10 ensayos)
+# sobre los origenes ['2025-12-31', '2026-02-28', '2026-04-30', '2026-06-30'] de seleccion: WAPE 0.2476 (ensayo 8).
+# Afinado sobre seleccion -> variante estricta de la referencia combo_gbm_prophetcal (k = 2 en R1).
+familia: ml_global
+variante_de: combo_gbm_prophetcal
+motor: lgbm
+conjunto: V4
+objetivo: l2
+params: {num_leaves: 88, learning_rate: 0.030066, n_estimators: 480, min_child_samples: 64,
+  colsample_bytree: 0.663588, subsample: 0.64415, reg_lambda: 0.422006}
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

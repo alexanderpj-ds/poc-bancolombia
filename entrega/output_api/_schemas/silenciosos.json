@@ -1,0 +1,20 @@
+{
+  "contrato": "silenciosos",
+  "version": "1.0.0",
+  "columnas": [
+    "modelo",
+    "cod_cajero",
+    "ultimo_dato",
+    "dias_red_sin_dato",
+    "tratamiento",
+    "origen_dato"
+  ],
+  "tipos": {
+    "modelo": "str",
+    "cod_cajero": "str",
+    "ultimo_dato": "date",
+    "dias_red_sin_dato": "int",
+    "tratamiento": "str",
+    "origen_dato": "str"
+  }
+}

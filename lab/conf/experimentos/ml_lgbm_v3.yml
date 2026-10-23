@@ -1,0 +1,10 @@
+# ALX fase 2 (E2 variables). Hipotesis: el perfil propio de la entidad (cuanto sube en pago, pago+1, festivo,
+# post-festivo y no habil, 190 dias) y la intermitencia (ceros, faltantes, dias sin dato, racha de NaN, dias cerca del
+# maximo como proxy de agotamiento) mejoran a V2, sobre todo en M4/M5 (erraticas) y en cajeros con huecos.
+familia: ml_global
+motor: lgbm
+conjunto: V3
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

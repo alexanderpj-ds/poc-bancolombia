@@ -1,0 +1,17 @@
+# ALX fase 2 (E6, FEAT-007 paso 10), m2_pagado. Ponderado por backtest (D10 c): pesos en el simplex que minimizan el WAPE micro
+# de los 16 origenes de seleccion (congelados para bloqueados y chequeo). En seleccion se evalua rolling (ml/correr_ensambles.py).
+familia: combinacion
+miembros:
+- gbm_cal
+- prophet_cal
+- perfil_dom
+- ml_cat_v4
+- ml_lgbm_v4_l1
+- ml_lgbm_v4_opt_m2_pagado
+pesos:
+- 0.017169
+- 0.107917
+- 0.0
+- 0.414279
+- 0.460635
+- 0.0

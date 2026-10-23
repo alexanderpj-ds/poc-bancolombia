@@ -1,0 +1,150 @@
+# conf/dq_rules.yml - Catalogo de reglas de calidad V-01..V-12 (§3.2) + Anexo C (§3.3)
+#
+# La SEMANTICA de las reglas sigue la tabla §3.2 del documento de arquitectura
+# (fuente de verdad), no una numeracion previa divergente del YAML. Cada regla
+# declara dimension, severidad y accion. Las validaciones concretas las
+# implementa src/daas/quality/checks.py; la compuerta vive en quality/report.py.
+#
+# Accion:  cuarentena = la fila no conforme sale de processed/ y va a
+#          daas://quality/rejected/<dataset>;  marcar = se anota una bandera y
+#          la fila continua (p.ej. holdout, missing_anexo_c, outlier marcado).
+
+reglas:
+  V-01:
+    descripcion: Validez de esquema estructural (columnas/tipos/obligatoriedad).
+    dimension: validez
+    severidad: critica
+    accion: cuarentena
+  V-02:
+    descripcion: Completitud de llaves y campos obligatorios por contrato.
+    dimension: completitud
+    severidad: critica
+    accion: cuarentena
+  V-03:
+    descripcion: Unicidad de la llave primaria del contrato.
+    dimension: unicidad
+    severidad: critica
+    accion: cuarentena
+  V-04:
+    descripcion: Dominio valido de valores categoricos (p.ej. ciudad, tipo_den).
+    dimension: validez
+    severidad: alta
+    accion: cuarentena
+  V-05:
+    descripcion: Rango valido de valores numericos (p.ej. montos >= 0).
+    dimension: validez
+    severidad: alta
+    accion: marcar
+  V-06:
+    descripcion: Integridad referencial entre contratos (FK -> maestro/dim_fondo).
+    dimension: consistencia
+    severidad: alta
+    accion: marcar
+  V-07:
+    descripcion: Corte temporal 31-ago-2026; lo posterior se separa a holdout.
+    dimension: consistencia
+    severidad: alta
+    accion: marcar
+  V-08:
+    descripcion: Anexo C - los 27 dias quedan NULL con missing_anexo_c (nunca 0).
+    dimension: completitud
+    severidad: critica
+    accion: marcar
+  V-09:
+    descripcion: Reconciliacion de desinstalados (RN-07) contra snapshot vigente.
+    dimension: consistencia
+    severidad: alta
+    accion: marcar
+  V-10:
+    descripcion: Cardinalidad de fondos (dim_fondo == 6); fatal si difiere.
+    dimension: consistencia
+    severidad: critica
+    accion: fatal
+  V-11:
+    descripcion: Cobertura temporal/por modelo segun cobertura_por_modelo.
+    dimension: completitud
+    severidad: alta
+    accion: marcar
+  V-12:
+    descripcion: Consistencia cruzada (p.ej. universo Clientes vs esperado).
+    dimension: consistencia
+    severidad: media
+    accion: marcar
+
+# Ventana Anexo C: 27 dias de evaluacion operativa (§3.3). Fechas 2026.
+ventana_anexo_c:
+  - 2026-04-06
+  - 2026-04-07
+  - 2026-04-08
+  - 2026-04-09
+  - 2026-04-10
+  - 2026-04-11
+  - 2026-04-12
+  - 2026-04-13
+  - 2026-04-14
+  - 2026-04-15
+  - 2026-04-16
+  - 2026-04-17
+  - 2026-06-10
+  - 2026-06-16
+  - 2026-06-17
+  - 2026-06-18
+  - 2026-06-20
+  - 2026-06-22
+  - 2026-06-23
+  - 2026-06-24
+  - 2026-06-25
+  - 2026-06-30
+  - 2026-07-06
+  - 2026-07-07
+  - 2026-07-08
+  - 2026-07-09
+  - 2026-07-10
+
+corte_entrenamiento: 2026-08-31
+
+ventana_evaluacion:
+  inicio: 2026-09-01
+  fin: 2026-09-15
+
+# Cobertura esperada de fondos por modelo (§3.3).
+# FONDO = CIUDAD|TRANSPORTADORA (6 fondos en total).
+cobertura_por_modelo:
+  M1: 5
+  M2: 5
+  M3: 5
+  M4: 6
+  M5: 6
+  M6: 6
+
+# ---------------------------------------------------------------------------
+# Supuestos de cliente PARAMETRIZABLES (NO inventar; default documentado).
+# El codigo lee de aqui y, si la clave falta, aplica el default conservador
+# tambien documentado en el modulo correspondiente. Ver reports/u0_profiling.md.
+# ---------------------------------------------------------------------------
+
+# P24 - vigencia del universo de Clientes (M5).
+# Perfilado: ~529 cod_punto reales vs 344 esperados. Default: NO filtrar
+# (conservar el universo presente); V-12 reporta la discrepancia. Depende de
+# confirmacion del cliente (P24).
+clientes_vigencia:
+  regla: ninguna          # ninguna | ultimo_hasta_corte (cuando el cliente confirme)
+  universo_esperado: 344
+  nota: "P24 pendiente; universo real ~529 vs 344 esperado - no confirmado."
+
+# RN-07 - reconciliacion de ATM desinstalados.
+# 29 de 491 ATM activos figuran tambien en cp_desinstalados (llave COD).
+# Default conservador: un ATM se considera desinstalado solo si NO esta en el
+# snapshot vigente de cp_historico (prioridad al maestro vigente). Los conflictos
+# se registran en el reporte DQ (V-09), no se excluyen a ciegas.
+rn07_reconciliacion:
+  prioridad: snapshot_vigente   # snapshot_vigente | fecha_desinstalacion
+  nota: "OD-6; registra los conflictos activo-y-desinstalado en el reporte DQ."
+
+# M6 - denominaciones/divisa y saldo inicial.
+# Denominaciones obligatorias; excluir 1000, monedas y divisa ($XXXAF/NF).
+m6_denominaciones: [100000, 50000, 20000, 10000, 5000, 2000]
+m6_excluir: [1000, MONEDA, DIVISA]
+m6_saldo_inicial:
+  regla: ultimo_disponible_hasta_corte
+  nota: "Saldo inicial M6 = ultimo disponible <= 31-ago-2026 por (fondo_id, denominacion)."

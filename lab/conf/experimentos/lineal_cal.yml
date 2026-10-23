@@ -1,0 +1,7 @@
+# Contraste lineal. Mismas variables y objetivo relativo que gbm_cal, con ridge en vez de boosting.
+familia: lineal_global
+grupos: [base, calendario, pago, dom_entidad]
+alpha: 1.0
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

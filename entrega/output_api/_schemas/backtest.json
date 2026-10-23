@@ -1,0 +1,24 @@
+{
+  "contrato": "backtest",
+  "version": "1.0.0",
+  "columnas": [
+    "modelo",
+    "objetivo",
+    "cod_cajero",
+    "fecha",
+    "y",
+    "yhat",
+    "lectura",
+    "origen_dato"
+  ],
+  "tipos": {
+    "modelo": "str",
+    "objetivo": "str",
+    "cod_cajero": "str",
+    "fecha": "date",
+    "y": "float",
+    "yhat": "float",
+    "lectura": "str",
+    "origen_dato": "str"
+  }
+}

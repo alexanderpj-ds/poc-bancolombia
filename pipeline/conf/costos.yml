@@ -1,0 +1,37 @@
+# conf/costos.yml - Concepto del Anexo E que se cobra por cada accion.
+#
+# El costo es fijo + monto / 10.000 x tarifa, con la fila del Anexo E (interim/costos_anexo_e) que
+# coincide en concepto, transportadora y servicio. El concepto se arma con estas reglas; agregar una
+# tipologia es agregar una linea, no codigo. Sin regla o sin tarifa: costo NULL + sin_tarifa.
+# Los conceptos se comparan con espacios normalizados y sin distinguir mayusculas.
+
+# {dia} en las plantillas: domingo o festivo (calendario del pipeline) -> D-F; el resto -> L-S.
+dia:
+  domingo_festivo: D-F
+  otro: L-S
+
+# Cajeros (M1, M2): `tipo_facturacion` del maestro cp_historico -> concepto.
+# Interurbano solo si la tipologia lo dice; lo demas, MF incluidos, es urbano (SUP-21).
+# El Anexo E trae una sola tabla de ATM: vale para provision y recoleccion.
+cajero:
+  ELITE: ATM URBANO {dia} ELITE
+  VIP: ATM URBANO {dia} VIP
+  ALTO: ATM URBANO {dia} ALTO
+  MEDIO: ATM URBANO {dia} MEDIO
+  BAJO: ATM URBANO {dia} BAJO
+  INDIVIDUAL: ATM URBANO {dia} INDIVIDUAL
+  INTERURBANO COMBO: ATM INTERURBANO {dia} COMBO
+  MF: MF URBANO {dia}
+
+# Sucursales (M3): `ubicacion` del maestro oficinas -> concepto. La primera regex que coincide gana;
+# {1} es el primer grupo. La escala sale de `ubicacion`, no de `escalas`; sin prefijo es urbana (SUP-22).
+# El servicio (tabla de provision o de recoleccion) es la accion.
+sucursal:
+  - patron: '^URBANO (ELITE|VIP|ALTO|MEDIO|BAJO|INDIVIDUAL)$'
+    concepto: SUCURSAL URBANO {1}
+  - patron: '^(ELITE|VIP|ALTO|MEDIO|BAJO|INDIVIDUAL)$'
+    concepto: SUCURSAL URBANO {1}
+  - patron: '^INTERURBANO (\d+)$'
+    concepto: SUCURSAL INTERURBANA ESCALA {1}
+  - patron: '^AEREO (\d+)$'
+    concepto: SUCURSAL AEREO {1}

@@ -1,0 +1,307 @@
+openapi: 3.1.0
+info:
+  title: Data API - Efectivo - Forecast and Simulated Balance (TARGET CONTRACT)
+  description: >
+    TARGET contract for the Data team of the DaaS Cash Administration PoC
+    (Bancolombia). This API does NOT exist yet: it is the specification handed to
+    the Data team so they implement it, and the contract that pronostico-ms and
+    gestion-ms consume through contractual mocks in the meantime. Two operation
+    families: (1) forecast series and predictive metrics, consumed by
+    pronostico-ms; (2) simulated balance and derived alerts, consumed by
+    gestion-ms (which exposes them as-is, without recomputing). Every operation
+    must honour the same entity, run (corrida), cut-off date (corte) and scenario,
+    and must distinguish success, absence of data and error. Transaction-Id is
+    mandatory and propagated.
+    Absence of data: empty collections (never zero) on 200, or 404 when the whole
+    entity/run has no data. Days without record are explicit gaps in 'huecos'. A
+    point without a crossing returns diaCruce = null, servicioSugerido = null and
+    an empty 'alertas' array.
+  version: 0.2.0
+  contact:
+    name: Arquitectura de Soluciones - PoC Efectivo
+servers:
+  - url: https://{dataApiHost}
+    description: Data API host (to be provided by the Data/Infra teams)
+    variables:
+      dataApiHost:
+        default: datos-efectivo-poc.example.com
+tags:
+  - name: forecast-series
+    description: Observed/projected series and predictive metrics (consumed by pronostico-ms)
+  - name: simulated-balance
+    description: Simulated balance and derived alerts (consumed by gestion-ms)
+paths:
+  /datos-efectivo/v1/forecast/series:
+    get:
+      tags: [forecast-series]
+      summary: Observed and projected series for an entity/level
+      description: >
+        Returns the observed series up to the cut-off date and the projected
+        series over the horizon, by entity/city/model/level. Days without record
+        are returned as explicit gaps (never zero). Units in COP.
+      operationId: getForecastSeries
+      parameters:
+        - { name: Transaction-Id, in: header, required: true, schema: { type: string, minLength: 1 } }
+        - { name: nivel, in: query, required: true, schema: { type: string, enum: [OVERVIEW, MODEL, POINT] } }
+        - { name: ciudad, in: query, required: false, schema: { type: string, enum: [CALI, PASTO, IPIALES] } }
+        - { name: modelo, in: query, required: false, schema: { type: string, enum: [cajeros, multifuncionales, sucursales, corresponsales, clientes] } }
+        - { name: puntoId, in: query, required: false, schema: { type: string, minLength: 1 } }
+        - { name: corrida, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - { name: corte, in: query, required: true, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Series available (empty arrays mean absence of data, not zero)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SeriesResponse' }
+              examples:
+                exito:
+                  summary: Serie con datos
+                  value:
+                    corrida: "0007"
+                    corte: "2026-08-31"
+                    nivel: POINT
+                    entidad: CAJ-CALI-001
+                    unidad: COP
+                    observado:
+                      - { fecha: "2026-08-30", valor: 95000000, tipoDato: OBSERVADO }
+                    proyectado:
+                      - { fecha: "2026-09-01", valor: 120000000, tipoDato: PROYECTADO }
+                    huecos: ["2026-09-05"]
+                ausencia:
+                  summary: Entidad existe pero sin datos en el periodo
+                  value:
+                    corrida: "0007"
+                    corte: "2026-08-31"
+                    nivel: POINT
+                    entidad: CAJ-CALI-001
+                    unidad: COP
+                    observado: []
+                    proyectado: []
+                    huecos: []
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /datos-efectivo/v1/forecast/metrics:
+    get:
+      tags: [forecast-series]
+      summary: Predictive error metrics by city and block
+      description: >
+        Returns WAPE, MAE and Bias by city and block (1-7 and 8-15), using the
+        bank partition. The 90% likely range is out of scope for the PoC.
+      operationId: getForecastMetrics
+      parameters:
+        - { name: Transaction-Id, in: header, required: true, schema: { type: string, minLength: 1 } }
+        - { name: ciudad, in: query, required: false, schema: { type: string, enum: [CALI, PASTO, IPIALES] } }
+        - { name: modelo, in: query, required: false, schema: { type: string, enum: [cajeros, multifuncionales, sucursales, corresponsales, clientes] } }
+        - { name: puntoId, in: query, required: false, schema: { type: string, minLength: 1 } }
+      responses:
+        '200':
+          description: Metrics available (empty array means absence of data)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MetricsResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /datos-efectivo/v1/simulated-balance:
+    get:
+      tags: [simulated-balance]
+      summary: Simulated balance and derived alerts for an entity
+      description: >
+        Returns the simulated balance vs cap, the crossing day, the suggested
+        service and the derived alerts for the given point/run/cut-off/scenario.
+        This is the authoritative source of the simulated balance and its alerts;
+        gestion-ms exposes this result without recomputing it.
+      operationId: getSimulatedBalance
+      parameters:
+        - { name: Transaction-Id, in: header, required: true, schema: { type: string, minLength: 1 } }
+        - { name: puntoId, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - { name: corrida, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - { name: corte, in: query, required: true, schema: { type: string, format: date } }
+        - { name: escenario, in: query, required: false, schema: { type: string, enum: [BASE], default: BASE } }
+      responses:
+        '200':
+          description: Simulated balance and alerts available
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SimulatedBalanceResponse' }
+              examples:
+                exito:
+                  summary: Saldo con cruce y alerta
+                  value:
+                    puntoId: CAJ-CALI-001
+                    corrida: "0007"
+                    corte: "2026-08-31"
+                    escenario: BASE
+                    cupo: 500000000
+                    serie:
+                      - { fecha: "2026-09-01", saldo: 180000000, tipoDato: SIMULADO }
+                    diaCruce: "2026-09-03"
+                    servicioSugerido: { fecha: "2026-09-02", monto: 320000000 }
+                    alertas:
+                      - { tipoRegla: "ALERTA_PROVISION", criticidad: CRITICA, montoEnRiesgo: 120000000, fechaCritica: "2026-09-08", tipoDato: SIMULADO }
+                sin_cruce:
+                  summary: Punto sin cruce (diaCruce null, servicioSugerido null, sin alertas)
+                  value:
+                    puntoId: CAJ-CALI-002
+                    corrida: "0007"
+                    corte: "2026-08-31"
+                    escenario: BASE
+                    cupo: 500000000
+                    serie:
+                      - { fecha: "2026-09-01", saldo: 420000000, tipoDato: SIMULADO }
+                    diaCruce: null
+                    servicioSugerido: null
+                    alertas: []
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+components:
+  schemas:
+    TipoDato:
+      type: string
+      enum: [OBSERVADO, PROYECTADO, SIMULADO, ESTIMADO, SIN_REGISTRO]
+    Criticidad:
+      type: string
+      enum: [CRITICA, MEDIA, MODERADA]
+    SeriePoint:
+      type: object
+      required: [fecha, valor, tipoDato]
+      properties:
+        fecha: { type: string, format: date }
+        valor: { type: integer, format: int64, description: Amount in COP }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    MetricaInterna:
+      type: object
+      required: [ciudad, bloque, wape, mae, bias]
+      properties:
+        ciudad: { type: string, enum: [CALI, PASTO, IPIALES] }
+        bloque: { type: string, enum: ["1-7", "8-15"] }
+        wape: { type: number, format: double, minimum: 0 }
+        mae: { type: integer, format: int64, minimum: 0 }
+        bias: { type: number, format: double }
+    SeriesResponse:
+      type: object
+      required: [corrida, corte, nivel, entidad, unidad, observado, proyectado, huecos]
+      properties:
+        corrida: { type: string, minLength: 1, example: "0007" }
+        corte: { type: string, format: date, example: "2026-08-31" }
+        nivel: { type: string, enum: [OVERVIEW, MODEL, POINT] }
+        entidad: { type: string, minLength: 1, description: Point/model/aggregate identifier }
+        unidad: { type: string, enum: [COP], example: "COP" }
+        observado:
+          type: array
+          items: { $ref: '#/components/schemas/SeriePoint' }
+        proyectado:
+          type: array
+          items: { $ref: '#/components/schemas/SeriePoint' }
+        huecos:
+          type: array
+          description: Days without record (explicit gaps, never zero)
+          items: { type: string, format: date }
+    MetricsResponse:
+      type: object
+      required: [corrida, corte, metricas]
+      properties:
+        corrida: { type: string, minLength: 1 }
+        corte: { type: string, format: date }
+        metricas:
+          type: array
+          items: { $ref: '#/components/schemas/MetricaInterna' }
+    SaldoPoint:
+      type: object
+      required: [fecha, saldo, tipoDato]
+      properties:
+        fecha: { type: string, format: date }
+        saldo: { type: integer, format: int64 }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    ServicioSugerido:
+      type: object
+      required: [fecha, monto]
+      properties:
+        fecha: { type: string, format: date }
+        monto: { type: integer, format: int64, minimum: 0 }
+    Alerta:
+      type: object
+      description: >
+        Alert generated by Data from the simulated balance. The A-nnn screen code is NOT part of
+        this contract: gestion-ms owns and associates it (ver pendientes NP-09). Aligned with the
+        canonical AlertaGenerada of Flujo E: carries tipoRegla, montoEnRiesgo and fechaCritica
+        (required by HU-21).
+      required: [tipoRegla, criticidad, montoEnRiesgo, fechaCritica, tipoDato]
+      properties:
+        tipoRegla: { type: string, minLength: 1, example: "ALERTA_PROVISION" }
+        criticidad: { $ref: '#/components/schemas/Criticidad' }
+        montoEnRiesgo: { type: integer, format: int64, minimum: 0 }
+        fechaCritica: { type: string, format: date }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    SimulatedBalanceResponse:
+      type: object
+      required: [puntoId, corrida, corte, escenario, cupo, serie, diaCruce, servicioSugerido, alertas]
+      properties:
+        puntoId: { type: string, minLength: 1 }
+        corrida: { type: string, minLength: 1, example: "0007" }
+        corte: { type: string, format: date, example: "2026-08-31" }
+        escenario: { type: string, enum: [BASE], example: "BASE" }
+        cupo: { type: integer, format: int64, minimum: 0 }
+        serie:
+          type: array
+          items: { $ref: '#/components/schemas/SaldoPoint' }
+        diaCruce:
+          description: Crossing day; null when the balance never crosses the rule
+          anyOf:
+            - { type: string, format: date }
+            - { type: "null" }
+        servicioSugerido:
+          description: Suggested service; null when there is no crossing
+          anyOf:
+            - { $ref: '#/components/schemas/ServicioSugerido' }
+            - { type: "null" }
+        alertas:
+          type: array
+          description: Derived alerts; empty array when the point has no alert
+          items: { $ref: '#/components/schemas/Alerta' }
+    ProblemDetails:
+      type: object
+      description: RFC 7807 problem detail
+      required: [type, title, status, code, transactionId, timestamp]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, example: "NOTFOUND-404" }
+        message: { type: string }
+        transactionId: { type: string, minLength: 1 }
+        timestamp: { type: string, format: date-time }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [field, reason]
+            properties:
+              field: { type: string }
+              reason: { type: string }
+  responses:
+    BadRequest:
+      description: Invalid or missing input
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    NotFound:
+      description: No data for the given entity/run/cut-off (absence of data)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    InternalError:
+      description: Unhandled server error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    GatewayTimeout:
+      description: Upstream did not respond in time
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }

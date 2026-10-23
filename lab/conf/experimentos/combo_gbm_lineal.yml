@@ -1,0 +1,3 @@
+# Promedio simple de boosting y ridge sobre las mismas variables. Pesos iguales, fijos.
+familia: combinacion
+miembros: [gbm_cal, lineal_cal]

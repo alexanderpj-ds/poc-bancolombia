@@ -1,0 +1,26 @@
+# conf/alx.yml - Interruptores de la copia de trabajo ALX (PARTE 7 del workflow de imputacion, 20-oct-2026).
+#
+# Cada cambio de ALX sobre el pipeline de Santiago va detras de un interruptor. Con TODOS en false (o sin este
+# archivo) el pipeline se comporta exactamente como el de Santiago (tests_alx/test_entrega_interruptores.py).
+# Lo lee `daas.alx.interruptor(nombre)`; un interruptor ausente vale false.
+interruptores:
+  # Recetas de los champions finales de la PARTE 5 (`forecaster.modelo_alx` de cada conf/model_*.yml en lugar
+  # de `forecaster.modelo`, que conserva la receta de Santiago). SUP-39.
+  campeones_ml: true
+  # Grupo `contexto` (V4) con el maestro "as of": ultimo snapshot de raw/cp_historico.xlsx <= origen, misma
+  # construccion que imputacion/contexto_asof.py (SUP-28). Lo exigen los champions de M1, M2 pagado y M5.
+  contexto_asof: true
+  # Correcciones de datos de la matriz corregida del laboratorio (SUP-35): duplicado exacto de sucursales del
+  # 13-may-2026 deduplicado y cajero-dias con un monto corrupto (nulo) del catalogo pasan a faltante (NaN).
+  correcciones_datos: true
+  # Imputacion de faltantes (SUP-36): NO se adopto en ningun champion (PARTE 5, decision_final.csv). No hay
+  # codigo de imputacion en el pipeline; encenderlo aborta la corrida (no hay variante adoptada que integrar).
+  imputacion: false
+  # Correccion de los disponibles de M6 (SUP-29; ademas exige `correccion_disponibles.aplicar` en model_u6.yml).
+  correccion_m6: true
+  # SUP-02 / SUP-27: entidad con denominador cero en la ventana sale solo del WAPE agregado (metricas y hoja 03).
+  sup02_denominador_cero: true
+  # Columna `origen_dato` en los contratos output/api/* (SUP-24..26).
+  origen_dato: true
+  # Textos de ALX en la hoja 04 (SUP-24 en adelante, laboratorio de ML, procedencia, M6 corregido).
+  supuestos_alx: true

@@ -1,0 +1,6 @@
+# Perfil_dom llevado a la media (total sin sesgo si la razón media/mediana se mantiene).
+familia: perfil_calibrado
+variante_de: perfil_dom
+base: perfil_dom
+lam: 1.0
+dias: 180

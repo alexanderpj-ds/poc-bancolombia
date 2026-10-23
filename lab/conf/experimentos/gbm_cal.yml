@@ -1,0 +1,8 @@
+# E1: + día del mes, festivos, fechas de pago y perfil de día-del-mes de la entidad.
+grupos: [base, calendario, pago, dom_entidad]
+perdida: squared_error
+familia: gbm_global
+paso_dias: 5              # un pseudo-origen de entrenamiento cada 5 días
+meses_entrenamiento: 18
+dias_pago: [15, fin]      # se corren al día hábil anterior
+hgb: {max_iter: 300, learning_rate: 0.06, max_leaf_nodes: 31, min_samples_leaf: 50}

@@ -1,0 +1,17 @@
+# ALX fase 2 (E6, FEAT-007 paso 10), m1. Ponderado por backtest (D10 c): pesos en el simplex que minimizan el WAPE micro
+# de los 16 origenes de seleccion (congelados para bloqueados y chequeo). En seleccion se evalua rolling (ml/correr_ensambles.py).
+familia: combinacion
+miembros:
+- gbm_cal
+- prophet_cal
+- perfil_dom
+- ml_lgbm_v4_tw
+- ml_lgbm_v4_opt_m1
+- ml_xgb_v4
+pesos:
+- 0.0
+- 0.122377
+- 0.0
+- 0.261286
+- 0.566253
+- 0.050084

@@ -1,0 +1,32 @@
+{
+  "contrato": "metricas",
+  "version": "1.0.0",
+  "columnas": [
+    "modelo",
+    "bloque",
+    "wape",
+    "mae",
+    "bias",
+    "n_obs",
+    "n_excluidas",
+    "nota",
+    "origen_dato",
+    "objetivo",
+    "origen",
+    "valor"
+  ],
+  "tipos": {
+    "modelo": "str",
+    "bloque": "str",
+    "wape": "float",
+    "mae": "float",
+    "bias": "float",
+    "n_obs": "int",
+    "n_excluidas": "int",
+    "nota": "str",
+    "origen_dato": "str",
+    "objetivo": "object",
+    "origen": "object",
+    "valor": "float64"
+  }
+}

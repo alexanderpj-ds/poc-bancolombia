@@ -1,0 +1,26 @@
+{
+  "contrato": "alertas",
+  "version": "1.0.0",
+  "columnas": [
+    "modelo",
+    "cod_cajero",
+    "fecha",
+    "tipo",
+    "severidad",
+    "nivel",
+    "limite",
+    "origen_dato",
+    "denominacion"
+  ],
+  "tipos": {
+    "modelo": "str",
+    "cod_cajero": "str",
+    "fecha": "date",
+    "tipo": "str",
+    "severidad": "str",
+    "nivel": "float",
+    "limite": "float",
+    "origen_dato": "str",
+    "denominacion": "Int64"
+  }
+}

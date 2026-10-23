@@ -1,0 +1,7 @@
+# El Prophet del pipeline con lo que le falta: regresores de pago y festivos + estacionalidad mensual.
+# Responde si el problema es Prophet o que no conoce el calendario de pagos.
+familia: prophet_calendario
+dias_pago: [15, fin]
+ventana_pago: 3          # indicadores para el día de pago y los 3 siguientes (+ la víspera)
+fourier_mensual: 5
+min_obs: 30              # mismo umbral de respaldo que el pipeline

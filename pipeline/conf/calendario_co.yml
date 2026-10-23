@@ -1,0 +1,36 @@
+# conf/calendario_co.yml - Calendario Colombia 2026 (§4.1)
+#
+# Stub de festivos CO 2026 + overrides operativos. La fuente autoritativa de
+# festivos la calcula src/daas/features/calendar.py con la libreria 'holidays';
+# este archivo permite SOBRE-ESCRIBIR o anadir dias por decision operativa.
+#
+# OD-18: dias operativos especiales (cierres/aperturas) que no coinciden con el
+# calendario legal de festivos. A completar por el equipo operativo.
+
+anio: 2026
+pais: CO
+
+# Festivos legales CO 2026 (stub; calendar.py los recalcula con 'holidays').
+festivos:
+  - 2026-01-01   # Ano Nuevo
+  - 2026-01-12   # Reyes Magos (trasladado)
+  - 2026-03-23   # San Jose (trasladado)
+  - 2026-04-02   # Jueves Santo
+  - 2026-04-03   # Viernes Santo
+  - 2026-05-01   # Dia del Trabajo
+  - 2026-05-18   # Ascension (trasladado)
+  - 2026-06-08   # Corpus Christi (trasladado)
+  - 2026-06-15   # Sagrado Corazon (trasladado)
+  - 2026-06-29   # San Pedro y San Pablo (trasladado)
+  - 2026-07-20   # Independencia
+  - 2026-08-07   # Batalla de Boyaca
+  - 2026-08-17   # Asuncion (trasladado)
+  - 2026-10-12   # Dia de la Raza (trasladado)
+  - 2026-11-02   # Todos los Santos (trasladado)
+  - 2026-11-16   # Independencia de Cartagena (trasladado)
+  - 2026-12-08   # Inmaculada Concepcion
+  - 2026-12-25   # Navidad
+
+# Overrides operativos (OD-18): fuerza el estado de un dia independientemente
+# del calendario legal. Estructura: fecha -> {operativo: bool, nota: str}.
+overrides_operativos: {}

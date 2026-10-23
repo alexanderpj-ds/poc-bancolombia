@@ -1,0 +1,9 @@
+# ALX fase 2 (E6, FEAT-007 paso 10), m2_pagado. Media(referencia de Santiago, mejor ML) (D10 b).
+# Pesos iguales.
+familia: combinacion
+miembros:
+- combo_gbm_prophetcal
+- ml_cat_v4
+pesos:
+- 1.0
+- 1.0

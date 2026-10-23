@@ -1,0 +1,58 @@
+# Bandas de pronóstico. Es dato: una variante nueva = una entrada, no un `if`.
+
+niveles: [0.80, 0.90]          # cobertura nominal de la banda (dos colas iguales)
+tolerancia: 0.05               # criterio: cobertura real dentro de nominal ± esto, por tramo de horizonte
+calibracion_minima: 6          # orígenes previos mínimos para calibrar; los anteriores no se evalúan
+dias_nivel: 28                 # la escala `nivel` es la media de los últimos N días <= origen de la entidad
+tamanos: 3                     # grupos de tamaño (terciles del nivel en el origen)
+
+# Residuo = (real − pronóstico) / escala. `grupo`: columnas que definen con quién se calibra cada punto.
+variantes:
+  global:            {escala: nivel, grupo: []}
+  por_tramo:         {escala: nivel, grupo: [bloque]}
+  por_horizonte:     {escala: nivel, grupo: [h]}
+  por_tramo_tamano:  {escala: nivel, grupo: [bloque, tamano]}
+  por_tramo_ciudad:  {escala: nivel, grupo: [bloque, ciudad]}
+  por_tramo_yhat:    {escala: yhat,  grupo: [bloque]}
+
+# Error acumulado que consume la política: suma de (lead time + 1) días, cuantil superior de una cola.
+acumulado:
+  lead_times: [0, 1, 2]
+  niveles: [0.90, 0.95, 0.99]
+  margenes_fijos: [0.25, 0.50]   # los de politicas.yml, para saber qué cobertura dan hoy
+
+adoptado:                      # pronóstico vigente por dataset
+  # ALX fase 2 (FEAT-008; revision F2: regla literal y k=2 con miembros afinados): champion segun
+  # ml/resultados/adopcion.csv (decision 'adoptar', regla ml/conf/adopcion_ml.yml).
+  # Antes (Santiago): m1/m2_pagado/m2_cash_in combo_gbm_prophetcal, m3_* gbm_cal, m4/m5 combo_perfil_gbml1.
+  # OJO (revision F2R2-01): m1, m2_pagado y m5 usan el grupo `contexto` (V4). Los CLI del lab que leen esta clave
+  # (lab.uncertainty.conformal, lab.explainability.explain, lab.handoff.handoff) pronostican con
+  # harness.evaluate_origin -> MODELS[model](history, dates) SIN contexto (columnas NaN, sin aviso) y en otro cache:
+  # recalculan una variante NO evaluada (en m2_pagado no cumpliria R3, ml/resultados/sin_contexto.csv). Para esas
+  # tres series usar ml/bandas_ml.py (cache de la fase 2, calculado con contexto), ml/explicar_ml.py (construye el
+  # contexto) o models:/poc-daas-ml-<ds>@champion (contexto empaquetado como artefacto).
+  m1: ml_lgbm_v4_tw
+  m2_pagado: ml_ens_pond_m2_pagado
+  m2_cash_in: ml_ens_pond_m2_cash_in
+  m3_entradas: ml_ens_pond_m3_entradas
+  m3_salidas: ml_lgbm_v1_l1
+  m4: combo_perfil_gbml1         # nadie cumplio R1-R5: se mantiene el de Santiago
+  m5: ml_ens_media_top3_m5
+
+  # Repeticion con imputacion (PARTE 5, 20-oct-2026; imputacion/resultados/ml/decision_final.csv, T2): el modelo de
+  # cada champion no cambia, pero la variante registrada (models:/poc-daas-ml-<ds>@champion) es la del escenario S1
+  # (datos corregidos y contexto V4 "as of", sin imputacion). La imputacion no se adopta en ningun champion.
+  # Las bandas de S1 recalibradas estan en imputacion/resultados/ml/bandas_oficial.csv (escenario S1).
+
+retador:                       # challenger por dataset
+  # Repeticion con imputacion (PARTE 5, T2, regla literal de imputacion/conf/decision_ml.yml `challenger`): @S2 =
+  # con historia imputada (m2_pagado, m2_cash_in, m3_entradas, m3_salidas, m4), @S1 = sin imputacion (m1, m5).
+  # Informativo: no se publica en el Excel. Bandas recalibradas: imputacion/resultados/ml/bandas_oficial.csv.
+  # Fase 2 (FEAT-008): m2_cash_in ml_ens_media_top3_m2_cash_in y m3_entradas ml_lgbm_v1_l1; los demas, los mismos.
+  m1: ml_ens_media_top3_m1                  # @S1
+  m2_pagado: ml_ens_media_top3_m2_pagado    # @S2
+  m2_cash_in: ml_ens_pond_m2_cash_in        # @S2
+  m3_entradas: ml_ens_pond_m3_entradas      # @S2
+  m3_salidas: ml_ens_media_top3_m3_salidas  # @S2
+  m4: ml_lgbm_v2_l1                         # @S2
+  m5: ml_lgbm_v3_l1                         # @S1

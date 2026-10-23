@@ -1,0 +1,461 @@
+openapi: 3.1.0
+info:
+  title: Data API - Efectivo - Alerts engine (TARGET contract, PENDING)
+  description: >
+    TARGET contract that gestion-ms needs from the Data team for Flow E (From the
+    alert to the decision). This API DOES NOT EXIST YET: today gestion-ms serves
+    these results from a contractual mock, switchable via the 'balance-source'
+    configuration key (MOCK | DATOS_API) without changing the use cases. THE DATA
+    TEAM OWNS THE COMPUTATION AND THE ALERT GENERATION: it generates the alerts
+    that populate the inbox and the panel (rule type, SIMULADO amount at risk,
+    critical date, entity, criticality and the data-type metadata needed to
+    explain them); returns the detail for the recommendation, the option
+    comparison and the 7-step accordion (data of origin, what is expected,
+    simulated balance, rule, cost, action, how it is managed); and recomputes the
+    scenario (balance before/after + suggested and adjusted cost) for an approve
+    or adjust action. gestion-ms CONSUMES, VALIDATES and EXPOSES these results
+    WITHOUT regenerating alerts, reclassifying or re-evaluating thresholds; it owns
+    the screen code (A-nnn), the alert state, the decision validation (RN-71A,
+    ZG-7, band, quota), the decision persistence and the history. Data does not
+    know the A-nnn code, the state, the decision or the history.
+    Responses carry a 'message' field and a 'source' (MOCK | DATOS_API).
+    Transaction-Id is mandatory.
+    A 204 means there is no data for the given filters; gestion-ms maps it to an
+    empty inbox or block state SIN_DATOS, NEVER to a zero or a fabricated list.
+    Amounts at risk are in COP and SIMULADO. Never present a projected/simulated/
+    estimated value as OBSERVADO (RN-03, F-01).
+  version: 1.0.0
+  contact:
+    name: Arquitectura de Soluciones - PoC Efectivo
+servers:
+  - url: http://datos-efectivo-ms-poc.bancolombia-poc-efectivo.svc.cluster.local
+    description: Internal cluster DNS (target; today replaced by a mock in gestion-ms)
+tags:
+  - name: alerts-engine
+    description: Alerts, detail and recomputed scenario generated/computed by the Data team (HU-21, HU-29, HU-12, HU-16, HU-30)
+paths:
+  /datos-efectivo/v1/alerts:
+    get:
+      tags: [alerts-engine]
+      summary: Generated alerts (HU-21)
+      description: >
+        Returns the GENERATED alerts for a run/cut-off/scenario: each alert with
+        its rule type, SIMULADO amount at risk, critical date, entity, criticality
+        and data-type metadata to explain it. The Data team generates the alert and
+        the amount at risk; gestion-ms associates the A-nnn screen code and the
+        state, orders the inbox and computes the critical counter (not part of this
+        contract). A 204 means no data; gestion-ms maps it to an empty inbox,
+        never a fabricated list.
+      operationId: getAlertsGenerated
+      parameters:
+        - $ref: '#/components/parameters/TransactionIdHeader'
+        - name: corrida
+          in: query
+          required: true
+          schema: { type: string }
+        - name: corte
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: escenario
+          in: query
+          required: false
+          schema: { type: string }
+        - name: ciudad
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/Ciudad' }
+      responses:
+        '200':
+          description: Generated alerts available
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertsGeneratedResponse' }
+              examples:
+                alertasGeneradas:
+                  summary: Two generated alerts (synthetic values, coherent with A-101/A-108)
+                  value:
+                    statusCode: "200"
+                    status: SUCCESS
+                    message: "OK - alerts generated"
+                    data:
+                      alertas:
+                        - { tipoRegla: ALERTA_PROVISION, entidad: "Cajero CAL-0452 (Cali)", frase: "Saldo proyectado bajo el 8 % del cupo", montoEnRiesgo: 120000000, criticidad: CRITICA, fechaCritica: "2026-09-08", tipoDato: SIMULADO }
+                        - { tipoRegla: EXCEDENTE_NO_EVACUABLE, entidad: "Fondo Ipiales · Transp. 003", frase: "Billete de $50.000 sobre su máximo en fin de semana", montoEnRiesgo: 40000000, criticidad: MODERADA, fechaCritica: "2026-09-12", tipoDato: SIMULADO }
+                      corrida: "0007"
+                      corte: "2026-08-31"
+                      source: MOCK
+                    timestamp: "2026-09-01T14:30:00Z"
+                    transactionId: "tx-9f2c1a"
+        '204': { $ref: '#/components/responses/NoData' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '408': { $ref: '#/components/responses/RequestTimeout' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /datos-efectivo/v1/alerts/{alertaId}:
+    get:
+      tags: [alerts-engine]
+      summary: Computed alert detail (HU-29 / HU-12 / HU-16)
+      description: >
+        Returns the COMPUTED detail of an alert: cause/rule/threshold in business
+        language, impact in COP, the recommendation (balance before/after), the
+        option comparison (what if we do not act + cost per option) and the 7-step
+        accordion (data of origin, what is expected, simulated balance, rule, cost,
+        action, how it is managed), each step with its data type. A 204 means no
+        data; gestion-ms maps it to block state SIN_DATOS, never a fabricated value.
+      operationId: getAlertDetailComputed
+      parameters:
+        - $ref: '#/components/parameters/TransactionIdHeader'
+        - $ref: '#/components/parameters/AlertaIdPath'
+        - name: corrida
+          in: query
+          required: true
+          schema: { type: string }
+        - name: corte
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: escenario
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Computed alert detail available
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertDetailComputedResponse' }
+              examples:
+                detalleCalculado:
+                  summary: Detail for A-102 with recommendation and 7-step accordion (synthetic values)
+                  value:
+                    statusCode: "200"
+                    status: SUCCESS
+                    message: "OK - alert detail computed"
+                    data:
+                      alertaId: A-102
+                      detalle: { causa: "El saldo proyectado del billete de $10.000 cae bajo el mínimo del fondo", regla: "FALTANTE_FONDO (RN-72 a)", umbral: "Mínimo del fondo para $10.000", impactoPesos: 300000000, tipoDato: SIMULADO }
+                      recomendacion: { accionSugerida: "Traslado desde Fondo Cali · Transp. 002", montoSugerido: 300000000, fechaSugerida: "2026-09-02", saldoAntes: -250000000, saldoDespues: 50000000, motivoSinAccion: null, tipoDato: SIMULADO }
+                      comparacionOpciones:
+                        - { accion: TRASLADO, nota: "Misma ciudad: sin costo (RN-74). El costo lo compone gestion-ms" }
+                        - { accion: NO_ACTUAR, nota: "El faltante persiste; se describe el impacto" }
+                      acordeon:
+                        - { paso: DATO_DE_ORIGEN, texto: "Saldo inicial al 31-ago del Fondo Cali · Transp. 001", tipoDato: OBSERVADO }
+                        - { paso: QUE_SE_ESPERA, texto: "Retiros proyectados del billete de $10.000", tipoDato: PROYECTADO }
+                        - { paso: SALDO_SIMULADO, texto: "El saldo del billete cae a -$250.000.000", tipoDato: SIMULADO }
+                        - { paso: REGLA, texto: "El billete queda bajo el mínimo del fondo (RN-72 a)", tipoDato: SIMULADO }
+                        - { paso: COSTO, texto: "Traslado en la misma ciudad: $0 (RN-74)", tipoDato: ESTIMADO }
+                        - { paso: ACCION, texto: "Traslado desde Fondo Cali · Transp. 002 por $300.000.000", tipoDato: SIMULADO }
+                        - { paso: COMO_SE_ADMINISTRA, texto: "Lo administra la transportadora del fondo", tipoDato: OBSERVADO }
+                      corrida: "0007"
+                      corte: "2026-08-31"
+                      source: MOCK
+                    timestamp: "2026-09-01T14:30:00Z"
+                    transactionId: "tx-9f2c1a"
+        '204': { $ref: '#/components/responses/NoData' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '408': { $ref: '#/components/responses/RequestTimeout' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /datos-efectivo/v1/alerts/{alertaId}/scenario:
+    post:
+      tags: [alerts-engine]
+      summary: Recomputed scenario (HU-30.3)
+      description: >
+        Given a proposed action (approve or adjust with amount/date), returns the
+        recomputed balance before/after and the suggested and adjusted cost, so
+        gestion-ms can show suggested vs adjusted without reimplementing the
+        formula. A 204 means there is nothing to recompute (gestion-ms maps it to
+        SIN_DATOS); a timeout maps to ERROR. The decision is still registered.
+      operationId: postAlertScenario
+      parameters:
+        - $ref: '#/components/parameters/TransactionIdHeader'
+        - $ref: '#/components/parameters/AlertaIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScenarioRequest' }
+            examples:
+              ajustar:
+                summary: Adjust scenario (synthetic values)
+                value:
+                  corrida: "0007"
+                  corte: "2026-08-31"
+                  escenario: base
+                  accion: { tipo: AJUSTAR, monto: 280000000, fecha: "2026-09-02" }
+      responses:
+        '200':
+          description: Scenario recomputed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScenarioComputedResponse' }
+              examples:
+                escenario:
+                  summary: Recomputed before/after and cost (synthetic values)
+                  value:
+                    statusCode: "200"
+                    status: SUCCESS
+                    message: "OK - alert scenario recomputed"
+                    data:
+                      alertaId: A-102
+                      saldoAntes: -250000000
+                      saldoDespues: 30000000
+                      tipoDato: SIMULADO
+                      corrida: "0007"
+                      corte: "2026-08-31"
+                      source: MOCK
+                    timestamp: "2026-09-01T14:30:00Z"
+                    transactionId: "tx-9f2c1a"
+        '204': { $ref: '#/components/responses/NoData' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '408': { $ref: '#/components/responses/RequestTimeout' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+components:
+  parameters:
+    TransactionIdHeader:
+      name: Transaction-Id
+      in: header
+      required: true
+      schema: { type: string }
+      description: Mandatory correlation id
+    AlertaIdPath:
+      name: alertaId
+      in: path
+      required: true
+      schema: { type: string, pattern: "^A-[0-9]+$" }
+      description: Alert screen code (A-nnn)
+  schemas:
+    Ciudad:
+      type: string
+      enum: [CALI, PASTO, IPIALES]
+    TipoDato:
+      type: string
+      enum: [OBSERVADO, PROYECTADO, SIMULADO, ESTIMADO, SIN_REGISTRO]
+    Criticidad:
+      type: string
+      enum: [CRITICA, MEDIA, MODERADA]
+    TipoReglaAlerta:
+      type: string
+      enum: [ALERTA_PROVISION, SUCURSAL_INSUFICIENCIA, SUCURSAL_EXCESO, FALTANTE_FONDO, EXCEDENTE_FONDO, EXCEDENTE_NO_EVACUABLE, DESBALANCE_DENOMINACION]
+      description: Alert rule/type generated by Data (distinct from the A-nnn screen code owned by gestion-ms)
+    PasoAcordeon:
+      type: string
+      enum: [DATO_DE_ORIGEN, QUE_SE_ESPERA, SALDO_SIMULADO, REGLA, COSTO, ACCION, COMO_SE_ADMINISTRA]
+    AccionEscenario:
+      type: string
+      enum: [APROBAR, AJUSTAR]
+      description: Only approve/adjust trigger a recomputed scenario
+    Source:
+      type: string
+      enum: [MOCK, DATOS_API]
+    AlertaGenerada:
+      type: object
+      required: [tipoRegla, entidad, frase, montoEnRiesgo, criticidad, fechaCritica, tipoDato]
+      description: One generated alert (the A-nnn code and state are added by gestion-ms)
+      properties:
+        tipoRegla: { $ref: '#/components/schemas/TipoReglaAlerta' }
+        entidad: { type: string }
+        frase: { type: string }
+        montoEnRiesgo: { type: integer, format: int64, description: "Amount at risk in COP (SIMULADO)" }
+        criticidad: { $ref: '#/components/schemas/Criticidad' }
+        fechaCritica: { type: string, format: date }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    AlertsGeneratedData:
+      type: object
+      required: [alertas, corrida, corte, source]
+      properties:
+        alertas:
+          type: array
+          items: { $ref: '#/components/schemas/AlertaGenerada' }
+        corrida: { type: string, pattern: "^[0-9]{4}$" }
+        corte: { type: string, format: date }
+        source: { $ref: '#/components/schemas/Source' }
+    AlertsGeneratedResponse:
+      type: object
+      required: [statusCode, status, message, data, timestamp, transactionId]
+      properties:
+        statusCode: { type: string, pattern: "^[0-9]{3}$" }
+        status: { type: string, enum: [SUCCESS, ERROR] }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/AlertsGeneratedData' }
+        timestamp: { type: string, format: date-time }
+        transactionId: { type: string, minLength: 1 }
+    DetalleCalculado:
+      type: object
+      required: [causa, regla, umbral, impactoPesos, tipoDato]
+      properties:
+        causa: { type: string }
+        regla: { type: string }
+        umbral: { type: string }
+        impactoPesos: { type: integer, format: int64 }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    RecomendacionCalculada:
+      type: object
+      required: [accionSugerida, saldoAntes, saldoDespues, tipoDato]
+      properties:
+        accionSugerida: { type: string }
+        montoSugerido:
+          anyOf:
+            - { type: integer, format: int64 }
+            - type: "null"
+        fechaSugerida:
+          anyOf:
+            - { type: string, format: date }
+            - type: "null"
+        saldoAntes: { type: integer, format: int64 }
+        saldoDespues: { type: integer, format: int64 }
+        motivoSinAccion:
+          anyOf:
+            - { type: string }
+            - type: "null"
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    OpcionComparada:
+      type: object
+      description: >
+        Comparable option for the recommendation. The cost is NOT part of this contract: it is
+        computed by gestion-ms from cost_tariff/storage_tariff (Anexo E, RN-04A); Data only states
+        the option and whether it is executable (ver pendientes NP-10).
+      required: [accion]
+      properties:
+        accion: { type: string }
+        nota:
+          anyOf:
+            - { type: string }
+            - type: "null"
+    PasoAcordeonItem:
+      type: object
+      required: [paso, texto, tipoDato]
+      properties:
+        paso: { $ref: '#/components/schemas/PasoAcordeon' }
+        texto: { type: string }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    AlertDetailComputedData:
+      type: object
+      required: [alertaId, detalle, recomendacion, comparacionOpciones, acordeon, corrida, corte, source]
+      properties:
+        alertaId: { type: string, pattern: "^A-[0-9]+$" }
+        detalle: { $ref: '#/components/schemas/DetalleCalculado' }
+        recomendacion: { $ref: '#/components/schemas/RecomendacionCalculada' }
+        comparacionOpciones:
+          type: array
+          items: { $ref: '#/components/schemas/OpcionComparada' }
+        acordeon:
+          type: array
+          items: { $ref: '#/components/schemas/PasoAcordeonItem' }
+          minItems: 7
+          maxItems: 7
+        corrida: { type: string, pattern: "^[0-9]{4}$" }
+        corte: { type: string, format: date }
+        source: { $ref: '#/components/schemas/Source' }
+    AlertDetailComputedResponse:
+      type: object
+      required: [statusCode, status, message, data, timestamp, transactionId]
+      properties:
+        statusCode: { type: string, pattern: "^[0-9]{3}$" }
+        status: { type: string, enum: [SUCCESS, ERROR] }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/AlertDetailComputedData' }
+        timestamp: { type: string, format: date-time }
+        transactionId: { type: string, minLength: 1 }
+    AccionScenario:
+      type: object
+      required: [tipo]
+      properties:
+        tipo: { $ref: '#/components/schemas/AccionEscenario' }
+        monto:
+          anyOf:
+            - { type: integer, format: int64 }
+            - type: "null"
+        fecha:
+          anyOf:
+            - { type: string, format: date }
+            - type: "null"
+    ScenarioRequest:
+      type: object
+      required: [corrida, corte, accion]
+      properties:
+        corrida: { type: string, pattern: "^[0-9]{4}$" }
+        corte: { type: string, format: date }
+        escenario:
+          anyOf:
+            - { type: string }
+            - type: "null"
+        accion: { $ref: '#/components/schemas/AccionScenario' }
+    ScenarioComputedData:
+      type: object
+      description: >
+        Recomputed scenario balance. The cost (costoSugerido/costoAjustado) is NOT part of this
+        contract: gestion-ms computes it from cost_tariff/storage_tariff (Anexo E). Data recomputes
+        only the balance before/after the action (ver pendientes NP-10).
+      required: [alertaId, saldoAntes, saldoDespues, tipoDato, corrida, corte, source]
+      properties:
+        alertaId: { type: string, pattern: "^A-[0-9]+$" }
+        saldoAntes: { type: integer, format: int64 }
+        saldoDespues: { type: integer, format: int64 }
+        tipoDato: { type: string, const: SIMULADO }
+        corrida: { type: string, pattern: "^[0-9]{4}$" }
+        corte: { type: string, format: date }
+        source: { $ref: '#/components/schemas/Source' }
+    ScenarioComputedResponse:
+      type: object
+      required: [statusCode, status, message, data, timestamp, transactionId]
+      properties:
+        statusCode: { type: string, pattern: "^[0-9]{3}$" }
+        status: { type: string, enum: [SUCCESS, ERROR] }
+        message: { type: string }
+        data: { $ref: '#/components/schemas/ScenarioComputedData' }
+        timestamp: { type: string, format: date-time }
+        transactionId: { type: string, minLength: 1 }
+    ProblemDetails:
+      type: object
+      required: [status, code, message, transactionId, timestamp]
+      description: RFC 7807 problem detail (Data variant, with message field)
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, example: "NOTFOUND-404" }
+        message: { type: string }
+        transactionId: { type: string, minLength: 1 }
+        timestamp: { type: string, format: date-time }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [field, reason]
+            properties:
+              field: { type: string }
+              reason: { type: string }
+  responses:
+    NoData:
+      description: No data for the given filters (gestion-ms maps 204 to an empty inbox or SIN_DATOS, never a zero)
+    BadRequest:
+      description: Invalid or missing input (VALIDATION-400)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    NotFound:
+      description: Alert not found (NOTFOUND-404)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    RequestTimeout:
+      description: Request exceeded the service time (REQTIMEOUT-408)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    InternalError:
+      description: Unhandled server error (INTERNAL-500)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+    GatewayTimeout:
+      description: Downstream dependency did not respond in time (GATEWAY-504)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }

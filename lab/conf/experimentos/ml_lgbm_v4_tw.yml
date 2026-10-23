@@ -1,0 +1,8 @@
+# ALX fase 2 (E3 objetivo, FEAT-007 paso 9; V* elegido en el cribado). Hipotesis: LightGBM sobre V* con otra perdida (tweedie): Tweedie p=1,3 para demanda con ceros y cola derecha.
+familia: ml_global
+motor: lgbm
+conjunto: V4
+objetivo: tweedie
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

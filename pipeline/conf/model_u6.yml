@@ -1,0 +1,141 @@
+# conf/model_u6.yml - Parametros del modelo M6 Fondos de efectivo (U6).
+#
+# M6 es el modelo PRESCRIPTIVO de la PoC: simula el balance de boveda por
+# fondo+denominacion a partir de los pronosticos ya publicados de M1-M5 y
+# recomienda acciones logisticas COSTEADAS (traslado, venta, BanRep,
+# intercambio/cambio de denominacion). NUNCA se inventa un dato que el banco no
+# entrego; donde falte, el codigo aplica el default documentado aqui
+# (daas.modules.funds_m6.config.DEFAULT_CONFIG) y lo anota con un logging.warning.
+# Fuente: .agents/tasks/u6-design.md (iteracion 3) + correcciones finales del
+# review (SUP-14 intercambio, objetivo por denominacion, denominacion Int64).
+
+# Horizonte de pronostico: 1-15 sep 2026, dias corridos (confirmado por el cliente).
+horizonte:
+  inicio: 2026-09-01
+  fin: 2026-09-15
+
+# Fuentes de datos (daas://). M6 lee la SSOT curada por modelo, no interim.
+fuentes:
+  disponibles: processed/m6_fondos        # saldo por fondo+denominacion (<= corte)
+  predicciones: output/api/predicciones    # consumo de M1-M5 ya publicado
+  metricas: output/api/metricas            # sesgo de red de M4/M5 (correccion_total)
+
+# Denominaciones en alcance (excluye 1.000 / moneda / divisa; ya filtrado aguas arriba).
+denominaciones: [100000, 50000, 20000, 10000, 5000, 2000]
+
+# Correccion de los disponibles (SUP-29, ALX; decision D3 del workflow de imputacion). Se aplica al cargar
+# processed/m6_fondos, antes de SUP-07/09/10: excluye las filas calidad=TOTAL (subtotal de TDV_002 y TDV_003)
+# y convierte a pesos (valor x denominacion) los fondo-dia de la TDV_001 que vienen en cantidad de billetes.
+# Detecta las unidades por datos: billetes si menos de `umbral_multiplo` de las filas con valor != 0 son
+# multiplo de la denominacion (src/daas/modules/funds_m6/correccion_disponibles.py). aplicar: false = Santiago.
+correccion_disponibles:
+  aplicar: true
+  umbral_multiplo: 0.5
+  # Decision del 20-oct-2026 (SUP-29): dias que no son una observacion valida salen de la historia como
+  # faltantes (SUP-07/09/10 no los ven), nunca como 0 ni sumando dos reportes. Ninguno es el ultimo dia <= corte.
+  excluir_dias_con_blancos: true      # fondo-denominacion-dia con `valor` en blanco (23 filas de CALI|TDV_004|50000)
+  excluir_dias_doble_formato: true    # fondo-dia con dos formatos de reporte (TOTAL != suma del resto; 30 fondo-dias)
+
+# Saldo inicial (RN-69 / SUP-07): ultimo registro <= corte por fondo+denominacion.
+saldo_inicial:
+  corte: 2026-08-31
+  faltante_a_cero: true     # combinacion sin registro <= corte -> 0.0 + WARNING
+
+# Distribucion del efecto M1-M5 por denominacion (SUP-09).
+mezcla_denominacion:
+  metodo: historico_valor   # proporcional al valor historico del fondo por denominacion
+  ventana_dias: 180         # ventana que termina en el corte (0 = todo el historico)
+  fallback: uniforme        # 1/6 por denominacion + WARNING si no hay historico
+
+# Efecto neto de M1-M5 por fondo-dia (RN-70 / SUP-12). Signo por (modelo, objetivo).
+efecto_m1_m5:
+  ingresos:
+    m2: [cash_in]
+    m3: [entradas]
+    m4: [ingreso_efectivo_cbr]
+    m5: [ingreso_efectivo_clientes]
+  egresos:
+    m1: [pagado]
+    m2: [pagado]
+    m3: [salidas]
+  excluir_sin_fondo: true   # cajeros sin fondo mapeable -> WARNING, fuera del efecto
+
+# Correccion del TOTAL de M4/M5 que suma M6.
+# El pronostico adoptado para M4/M5 apunta a la mediana y subestima el total. M6 multiplica esos
+# ingresos por un factor de RED. Metodo `movil` (sin fuga): razon real/pronostico = 1 / (1 + sesgo)
+# de los ultimos `ventana_origenes` origenes cerrados (bloque `sesgo_red_origen` de `metricas`,
+# que publica U4/U5), promediada y acotada. Un origen cuenta solo si su ventana de evaluacion
+# (`horizonte_evaluacion_dias`) termino antes del origen de la corrida. El metodo `fijo`
+# usa el sesgo agregado de todos los origenes, incluidos los posteriores (fuga). Lo publicado
+# por M4/M5 no se toca; el factor solo actua en el total que consume M6.
+correccion_total:
+  activo: true
+  metodo: movil             # movil | fijo
+  bloque: sesgo_red         # metodo fijo
+  bloque_origen: sesgo_red_origen   # metodo movil (una fila por origen, columna `origen`)
+  ventana_origenes: 3       # ultimos N origenes cerrados antes del origen de la corrida
+  min_origenes: 1           # menos que esto -> sin correccion + WARNING
+  horizonte_evaluacion_dias: 15     # largo de la ventana evaluada por origen (= horizonte)
+  # Solo M5. En M4 el sesgo cambia de signo entre origenes (-22 % a +20 %) y el factor lo empeora;
+  # en M5 es siempre negativo y el factor lo reduce. Agregar m4 aqui lo activa.
+  modelos: [m5]
+  factor_min: 0.67          # tope de la correccion: fuera de este rango el sesgo no es
+  factor_max: 1.5           # estable y se avisa en vez de aplicarlo entero
+
+# Minimos/maximos operativos propuestos por Pragma (SUP-10 / D-MINMAX-1).
+minmax:
+  metodo: percentiles
+  p_min: 0.10
+  p_max: 0.90
+  ventana_dias: 180         # ventana del saldo historico que termina en el corte (0 = todo)
+  fallback_minimo: 0.0      # si no hay historico de ese fondo+den + WARNING
+  # fallback_maximo NO es null: si no hay percentil (sin historico), el maximo se
+  # deriva igual del dato -> k_fallback_maximo * saldo_inicial del fondo+den, de
+  # modo que el lado 'exceso' SIEMPRE tiene umbral (nunca NaN).
+  k_fallback_maximo: 3.0    # maximo_fallback = 3.0 * saldo_inicial (+ WARNING)
+
+# Matriz de operaciones habilitadas por fondo (SUP-08 / SUP-13 / D-OPS-1).
+operaciones:
+  inferir_de: [ventas, intercambios, banrep]   # banrep: por tarifa en Anexo E Fondos
+  banrep_desde_anexo_e: true    # habilitado si la TDV del fondo tiene tarifa BanRep (SUP-13)
+  traslado:                     # D-TRASLADO-1 (emparejamiento y factibilidad)
+    mismo_ciudad_distinta_tdv_costo_cero: true  # nota oficial Anexo E (D-COSTO-2)
+    preferir_costo_cero: true   # (1) misma ciudad distinta TDV antes que (2) menor costo
+    nan_al_final: true          # pares con tarifa NaN se ordenan despues de los que tienen tarifa
+    tarifa_por: origen          # la TDV que tarifa el traslado = la del fondo ORIGEN (D-COSTO-2-bis)
+    acotar_monto_a_excedente_origen: true  # monto = min(deficit_receptor, excedente_origen)
+    permitir_parcial: true      # si el excedente no cubre, traslado parcial + remanente
+    max_candidatos: 0           # 0 = emitir todas las contrapartes viables (U7 decide); >0 limita
+  banrep:                       # RN-75 (supuesto: no hay historico de movimientos BanRep, SUP-13)
+    ciudades_habilitadas: [CALI]  # consignacion/retiro solo en fondos de estas ciudades ([] = sin restriccion)
+  intercambio:                  # D-INTERCAMBIO-1 (SUP-14) - rebalanceo intra-fondo entre denominaciones
+    emitir_recomendacion: true  # el cliente autorizo emitir intercambio/cambio_denominacion (SUP-14)
+    cambio_denominacion_hereda: true  # cambio_denominacion hereda la habilitacion de intercambio
+
+# Motor de costos (Anexo E extendido, D-COSTO-1).
+costos:
+  ambito: Fondos
+  almacenamiento:               # RN-78/79: costo de guardar efectivo (criterio del excedente + metrica)
+    habilitado: true
+    concepto: "Costo almacenamiento por día (por cada 10Mil Millones)"
+    unidad_cop: 10000000000     # la tarifa del Anexo E es por dia y por cada 10 mil millones de COP
+
+# Decision de la accion (una alternativa por necesidad, saldos encadenados).
+decision:
+  max_acciones_por_necesidad: 1   # H-01/RN-80: UNA alternativa de bajo costo por (fondo, den, dia, tipo)
+  redondeo: denominacion          # montos enteros (H-09), multiplos de la denominacion (mcm si hay dos)
+  traslado_mismo_dia: true        # supuesto: el traslado se aplica el mismo dia (T+1 no modelado)
+  dias_no_habiles_sin:            # RN-71A: sabado, domingo y festivos (calendario CO)
+    [banrep_consignacion, banrep_retiro, venta, intercambio, cambio_denominacion]
+  conservar_excedente: true       # el excedente puede quedarse si guardarlo cuesta menos (RN-79)
+  venta:                          # RN-76: beneficio de referencia = tasa de consolidado_ventas
+    ventana_dias: 365             # historico (<= corte) para la tasa mediana del fondo
+    tasa_por_monto: 10000         # la tasa es COP por cada 10.000 vendidos
+  riesgo_residual:                # nivel de riesgo DESPUES de la accion (hoja 05)
+    alto_si_fraccion_minimo_menor: 0.5   # saldo < 50 % del minimo (o agotado) -> alto
+    exceso: medio                        # exceso que se conserva por costo -> medio
+
+# Forecaster: NO se usa (M6 no entrena); se deja por simetria de config con M3.
+forecaster:
+  min_obs: 30
+  fallback: naive_estacional_7

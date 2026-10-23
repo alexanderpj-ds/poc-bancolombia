@@ -1,0 +1,9 @@
+# ALX fase 2 (E4 motor, FEAT-007 paso 9; V* elegido en el cribado). Hipotesis: CatBoost con la ENTIDAD como categorica (codificacion ordenada en el tiempo, has_time) sobre V*.
+familia: ml_global
+motor: cat
+conjunto: V1
+objetivo: l1
+entidad_categorica: true
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

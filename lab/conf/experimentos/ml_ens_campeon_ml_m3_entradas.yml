@@ -1,0 +1,9 @@
+# ALX fase 2 (E6, FEAT-007 paso 10), m3_entradas. Media(referencia de Santiago, mejor ML) (D10 b).
+# Pesos iguales.
+familia: combinacion
+miembros:
+- gbm_cal
+- ml_lgbm_v1_l1
+pesos:
+- 1.0
+- 1.0

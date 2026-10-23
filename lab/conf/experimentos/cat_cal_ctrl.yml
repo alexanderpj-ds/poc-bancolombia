@@ -1,0 +1,9 @@
+# Control: CatBoost con las mismas variables que gbm_cal, SIN la entidad. Mide solo el cambio de librería.
+familia: cat_global
+variante_de: gbm_cal      # misma hipótesis, otra implementación
+entidad_categorica: false
+grupos: [base, calendario, pago, dom_entidad]
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]
+cat: {iterations: 300, learning_rate: 0.06, depth: 6}   # sin búsqueda: mismo nº de árboles y tasa que gbm_cal

@@ -1,0 +1,43 @@
+# conf/model_u4_u5.yml - Parametros de los modelos M4 (CBR) y M5 (Clientes) (U4/U5).
+#
+# Supuestos PARAMETRIZABLES con default documentado (NUNCA se inventa un dato
+# que el banco no entrego). El codigo lee de aqui y, si una clave falta, aplica
+# el default documentado en el modulo correspondiente (daas.modules.funds_inflows_m4_m5.config)
+# y lo anota con un logging.warning.
+# Fuente: plan-u4-u5.md FEAT-001 (D-U45-*) + docs/supuestos.md SUP-02 / SUP-03.
+# Mantiene la forma/estilo de conf/model_m3.yml.
+#
+# M4/M5 son los modelos MAS LIVIANOS de la PoC: solo pronostico de ingreso de
+# efectivo por FONDO-dia. SIN simulacion de saldo, SIN recomendaciones, SIN
+# alertas (son insumo de M6).
+
+# Horizonte de pronostico: 1-15 sep 2026, dias calendario (SUP-03 / D4).
+horizonte:
+  inicio: 2026-09-01
+  fin: 2026-09-15
+
+# Backtest interno para metricas (D7): el holdout 1-15 sep tiene 0 obs reales,
+# asi que WAPE/MAE/Bias se calculan sobre la ultima ventana del entrenamiento.
+backtest:
+  dias: 15
+
+# Modelo de pronostico.
+forecaster:
+  min_obs: 30                        # bajo este umbral -> fallback estacional documentado (D3)
+  fallback: naive_estacional_7
+  # Receta de conf/pronosticadores.yml por modelo. Sin declarar -> `prophet`.
+  modelo: {m4: combo_perfil_gbml1, m5: combo_perfil_gbml1}
+  # ALX PARTE 7 (SUP-39): champions finales (escenario S1; = models:/poc-daas-ml-<ds>@champion). Interruptor
+  # `campeones_ml`. En M4 el champion ES la receta de Santiago (nadie cumplio R1-R5): se usa la receta nativa.
+  modelo_alx: {m4: combo_perfil_gbml1, m5: campeon_m5}
+
+# Mapeo de modelos -> fuente processed + nombre del objetivo publicado (D-U45-7).
+# El loader agrega 'valor' a 'ingreso_efectivo' por (fondo_id, fecha); el
+# contrato predicciones emite ese objetivo con el nombre de aqui.
+modelos:
+  m4:
+    processed: m4_cbr
+    objetivo: ingreso_efectivo_cbr
+  m5:
+    processed: m5_clientes
+    objetivo: ingreso_efectivo_clientes

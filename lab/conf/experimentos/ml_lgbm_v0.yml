@@ -1,0 +1,11 @@
+# ALX fase 2 (E1 motor). Hipotesis: LightGBM con EXACTAMENTE las variables de gbm_cal (V0) mejora al HGB de
+# Santiago solo por el motor (hojas por hoja, submuestreo de filas/columnas, regularizacion L2).
+# Misma hipotesis que gbm_cal con otra implementacion -> variante (k = 2 si la referencia es gbm_cal).
+familia: ml_global
+variante_de: gbm_cal
+motor: lgbm
+conjunto: V0
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

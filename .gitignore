@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+mlruns/
+mlflow.db
+catboost_info/
+.DS_Store
+# Insumos raw (110 MB): se descargan de S3 con scripts/descargar_raw.sh
+datos/raiz/raw/
+# Salidas generadas (pipeline y publicar.py deben escribir fuera del repo; por si acaso)
+salidas/
+*.log
+.env
+.env.*
+.aws/

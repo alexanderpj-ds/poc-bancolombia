@@ -1,0 +1,8 @@
+# ALX fase 2 (E4 motor, FEAT-007 paso 9; V* elegido en el cribado). Hipotesis: RandomForest (bagging) sobre V*: menos varianza que el boosting en series ruidosas; imputa dentro del fit.
+familia: ml_global
+motor: rf
+conjunto: V3
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

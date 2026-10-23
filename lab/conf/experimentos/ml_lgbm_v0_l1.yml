@@ -1,0 +1,11 @@
+# ALX fase 2 (E1 motor, perdida L1 para M4/M5). Hipotesis: LightGBM con las variables de gbm_cal_l1 (V0) y perdida
+# L1 (apunta a la mediana, la que minimiza el WAPE) mejora al HGB L1 de Santiago solo por el motor.
+# Misma hipotesis que gbm_cal_l1 con otra implementacion -> variante (k = 2 si la referencia es gbm_cal_l1).
+familia: ml_global
+variante_de: gbm_cal_l1
+motor: lgbm
+conjunto: V0
+objetivo: l1
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

@@ -1,0 +1,63 @@
+# conf/model_m3.yml - Parametros del modelo M3 Sucursales (U3).
+#
+# Supuestos PARAMETRIZABLES con default documentado (NUNCA se inventa un dato
+# que el banco no entrego). El codigo lee de aqui y, si una clave falta, aplica
+# el default documentado en el modulo correspondiente (daas.modules.branches_m3.config) y
+# lo anota con un logging.warning.
+# Fuente: plan.md FEAT-001 U3-M3 + docs/supuestos.md SUP-M3-01 / SUP-M3-02.
+# Mantiene la forma/estilo de conf/model_u1_u2.yml.
+
+# Horizonte de pronostico: 1-15 sep 2026, dias calendario (SUP-03 / D4).
+horizonte:
+  inicio: 2026-09-01
+  fin: 2026-09-15
+
+# Backtest interno para metricas (D7): el holdout 1-15 sep tiene 0 obs reales,
+# asi que WAPE/MAE/Bias se calculan sobre la ultima ventana del entrenamiento.
+backtest:
+  dias: 15
+
+# Objetivos del modelo de sucursales: doble forecaster entradas + salidas.
+objetivos: [entradas, salidas]
+
+# M3 sucursales (saldo del boveda / cajero de sucursal fisica).
+m3:
+  umbral_agotamiento: 0.08           # umbral de provision como fraccion de cupo_max_suc
+
+# Politica diferenciada por sucursal (RN-40/41; V3 `dif_ocioso` del lab). Por sucursal, con su historia
+# de los ultimos `historia_dias` <= corte:
+#   reserva  = min(reserva_max, max(umbral, k_reserva * sigma_neto / cupo)) * cupo
+#   provision: si el saldo previsto del dia < reserva, sube a min(cupo, reserva + dias_cobertura * mu_salidas)
+#   recoleccion: lo que pase de min(cupo, reserva + dias_techo * mu_salidas) (cierre del dia)
+# Con menos de `min_obs` dias validos: regla no diferenciada (umbral, llena al cupo, recoge sobre el cupo); ver
+# `historia_corta_regla_vigente`.
+# `activa: false` -> regla anterior (8 % -> cupo, sin pronostico). `dias_techo` se barre en el lab: 6 / 10 / 15.
+politica:
+  activa: true
+  historia_dias: 180
+  min_obs: 30
+  reserva_max: 0.5                   # fraccion del cupo
+  k_reserva: 1.0
+  dias_cobertura: 3
+  dias_techo: 15
+  usa_pronostico: true
+  # Historia corta (RN-16/RN-52): una sucursal con menos de `min_obs` dias validos aplica la regla vigente del
+  # banco (apertura < umbral -> cupo; recoge solo sobre el cupo), SIN pronostico, en vez de V3. `false` -> V3 con
+  # reserva = umbral, objetivo y techo = cupo y decision con pronostico. La explicacion de cada accion lo dice.
+  historia_corta_regla_vigente: true
+
+# Saldo operativo de la sucursal.
+saldo:
+  cap_superior: cupo_max_suc         # SUP-M3-01: cupo_max_suc ES el maximo de la boveda
+
+# Modelo de pronostico.
+forecaster:
+  min_obs: 30                        # bajo este umbral -> fallback estacional documentado (D3)
+  fallback: naive_estacional_7
+  # Receta de conf/pronosticadores.yml por objetivo. Sin declarar -> `prophet`.
+  # Receta de Santiago (interruptores de conf/alx.yml apagados). La fase 2 de ALX habia puesto aqui
+  # {entradas: ml_ens_pond_m3_entradas, salidas: ml_lgbm_v1_l1}; desde la PARTE 7 los champions van en `modelo_alx`.
+  modelo: {entradas: gbm_cal, salidas: gbm_cal}
+  # ALX PARTE 7 (SUP-39): champions finales (escenario S1; = models:/poc-daas-ml-<ds>@champion). Interruptor
+  # `campeones_ml`.
+  modelo_alx: {entradas: campeon_m3_entradas, salidas: campeon_m3_salidas}

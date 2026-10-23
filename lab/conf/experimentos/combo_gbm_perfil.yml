@@ -1,0 +1,3 @@
+# Promedio simple de dos familias distintas (boosting global + perfil estadístico). Pesos iguales, fijos.
+familia: combinacion
+miembros: [gbm_cal, perfil_dom]

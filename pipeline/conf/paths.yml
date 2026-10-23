@@ -1,0 +1,39 @@
+# conf/paths.yml - Resolucion de URIs abstractas (§6.1 / §1.2)
+#
+# La URI abstracta tiene la forma:  daas://<capa>/<dataset>
+# y se resuelve a un destino fisico segun 'default_scheme':
+#
+#   - local:  file://<local.root>/<capa>/<dataset>.parquet
+#   - s3:     s3://<s3.bucket>/<capa>/<dataset>.parquet
+#
+# El esquema por defecto es 'local'. S3 se activa solo por entorno
+# (DAAS_SCHEME=s3 y DAAS_S3_BUCKET=<bucket>); ninguna cuenta ni bucket va en el repo.
+# Modo estricto: con esquema s3, un fallo de S3 es un error claro; NO se degrada a local.
+
+default_scheme: local  # local | s3
+scheme_env: DAAS_SCHEME  # si esta definida, manda sobre default_scheme
+
+s3:
+  bucket: null            # sin valor por defecto
+  bucket_env: DAAS_S3_BUCKET
+  # Prefijo por capa dentro del bucket (SSOT medallion).
+  prefix_por_capa:
+    raw: raw
+    interim: interim
+    processed: processed
+    features: features
+    output: output
+    quality: quality
+
+local:
+  # Raiz del espejo local (relativa a la raiz del paquete poc-daas).
+  root: ./data
+
+# Mapa canonico de capas de la arquitectura medallion.
+capas:
+  - raw        # fuentes crudas tal como llegan
+  - interim    # normalizado (tipos, fechas ISO, FONDO)
+  - processed  # curado por modelo
+  - features   # features de modelado
+  - output     # entregables (Anexo D, API)
+  - quality    # reportes DQ y cuarentena

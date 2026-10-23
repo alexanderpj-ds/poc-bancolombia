@@ -1,0 +1,18 @@
+# conf/entity_id_map.yml - Mapa de identificadores de salida (OD-2, §7.1).
+#
+# Resuelve el gate OD-2 (id con que los contratos output/api/* nombran cada
+# entidad). COMPORTAMIENTO POR DEFECTO: PASSTHROUGH. Mientras este mapa este
+# VACIO, publish/contracts.py emite el id enmascarado TAL COMO VIENE DE ORIGEN
+# (cod_cajero), sin traducir.
+#
+# Cuando el banco confirme OD-2 (id oficial de la evaluacion ciega), basta con
+# poblar aqui el mapeo origen -> id-oficial, SIN tocar codigo. Formato esperado:
+#
+#   mapa:
+#     "<cod_cajero_origen>": "<id_oficial_banco>"
+#     "ATM_0001": "BANCO_0001"
+#
+# VACIO = passthrough (default accionable; el entregable es construible hoy y
+# queda un unico punto de correccion). NUNCA se inventa un id que el banco no
+# haya entregado.
+mapa: {}

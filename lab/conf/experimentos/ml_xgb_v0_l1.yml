@@ -1,0 +1,11 @@
+# ALX fase 2 (E1 motor, perdida L1 para M4/M5). Hipotesis: XGBoost (hist, reg:absoluteerror) con las variables de
+# gbm_cal_l1 (V0) mejora al HGB L1 de Santiago solo por el motor.
+# Misma hipotesis que gbm_cal_l1 con otra implementacion -> variante (k = 2 si la referencia es gbm_cal_l1).
+familia: ml_global
+variante_de: gbm_cal_l1
+motor: xgb
+conjunto: V0
+objetivo: l1
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

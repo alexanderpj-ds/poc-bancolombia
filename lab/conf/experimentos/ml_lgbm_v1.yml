@@ -1,0 +1,11 @@
+# ALX fase 2 (E2 variables). Hipotesis: el calendario detallado mejora a V0: pago del 15 vs fin de mes, pago+1..3,
+# dia 1-2, dias habiles a/desde el pago, puentes y bloques no habiles, vispera/post HABILES, temporadas (primas,
+# diciembre, Semana Santa, feria de Cali, carnaval de Pasto). EDA: M1 pago +51 %, pago+1 +39 %, festivo -45 %;
+# M3 pago+1 +92/+103 %; cambios de nivel en nov-dic-ene.
+familia: ml_global
+motor: lgbm
+conjunto: V1
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

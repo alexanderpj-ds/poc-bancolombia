@@ -1,0 +1,8 @@
+# ALX fase 2 (E4 motor, FEAT-007 paso 9; V* elegido en el cribado). Hipotesis: El motor de Santiago (HGB) con las variables de V*: aisla el efecto de las variables nuevas del motor.
+familia: ml_global
+motor: hgb
+conjunto: V1
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

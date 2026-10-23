@@ -1,0 +1,363 @@
+# Recetas de pronostico. Es dato: un modelo nuevo = una entrada, no un `if`.
+# Cada `conf/model_*.yml` elige una por nombre en `forecaster.modelo`. Las recetas no se
+# afinan aqui: se eligieron y midieron en el lab (lab/conf/experimentos/).
+
+paralelo: -1          # procesos para los ajustes por serie (Prophet); 1 = sin paralelismo
+
+recetas:
+  # El pronosticador original del pipeline: Prophet semanal por serie, con respaldo estacional.
+  # `min_obs` lo pone cada unidad (`forecaster.min_obs`).
+  prophet:
+    familia: prophet_serie
+
+  # Mediana por dia de la semana (8 semanas) x factor de dia del mes de la red.
+  perfil_dom:
+    familia: perfil_dom
+    meses: 6
+
+  # Boosting global con calendario de pagos.
+  gbm_cal:
+    familia: gbm_global
+    grupos: [base, calendario, pago, dom_entidad]
+    perdida: squared_error
+    paso_dias: 5              # un pseudo-origen de entrenamiento cada 5 dias
+    meses_entrenamiento: 18
+    dias_pago: [15, fin]      # se corren al dia habil anterior
+    hgb: {max_iter: 300, learning_rate: 0.06, max_leaf_nodes: 31, min_samples_leaf: 50}
+
+  # Igual con perdida L1 (apunta a la mediana).
+  gbm_cal_l1:
+    familia: gbm_global
+    grupos: [base, calendario, pago, dom_entidad]
+    perdida: absolute_error
+    paso_dias: 5
+    meses_entrenamiento: 18
+    dias_pago: [15, fin]
+    hgb: {max_iter: 300, learning_rate: 0.06, max_leaf_nodes: 31, min_samples_leaf: 50}
+
+  # Prophet por serie con regresores de pago y festivos y estacionalidad mensual.
+  prophet_cal:
+    familia: prophet_calendario
+    dias_pago: [15, fin]
+    ventana_pago: 3           # dia de pago y los 3 siguientes (+ la vispera)
+    fourier_mensual: 5
+    min_obs: 90               # con menos dias con dato cae a su respaldo (media por dia de la semana);
+                              # 90 = umbral de "entidad nueva" del contrato (lab/conf/evaluacion.yml)
+
+  # Adoptado en M1 y M2: promedio simple, pesos iguales y fijos.
+  combo_gbm_prophetcal:
+    familia: combinacion
+    miembros: [gbm_cal, prophet_cal]
+
+  # Adoptado en M4 y M5.
+  combo_perfil_gbml1:
+    familia: combinacion
+    miembros: [perfil_dom, gbm_cal_l1]
+
+  # ALX fase 2 (FEAT-008): ganadores autocontenidos (sin `contexto`) de ml/resultados/adopcion.csv. Mismos
+  # parametros que lab/conf/experimentos/<nombre>.yml (familia ml_global = daas.forecasting.global_ml).
+  # LightGBM global con calendario colombiano detallado (V1) y perdida L1. Adoptado en M3 entradas y salidas.
+  ml_lgbm_v1_l1:
+    familia: ml_global
+    motor: lgbm
+    conjunto: V1
+    objetivo: l1
+    paso_dias: 5
+    meses_entrenamiento: 18
+    dias_pago: [15, fin]
+
+  # LightGBM global con V3 (V1 + rezagos, anual, perfil propio e intermitencia) y perdida L1. Miembro del de M2 cash-in.
+  ml_lgbm_v3_l1:
+    familia: ml_global
+    motor: lgbm
+    conjunto: V3
+    objetivo: l1
+    paso_dias: 5
+    meses_entrenamiento: 18
+    dias_pago: [15, fin]
+
+  # Media (pesos iguales) del combo de Santiago y del mejor ML de M2 cash-in. Ya no es champion (revision F2: la
+  # regla literal adopta ml_ens_pond_m2_cash_in); se conserva solo como referencia de la version anterior.
+  ml_ens_campeon_ml_m2_cash_in:
+    familia: combinacion
+    miembros: [combo_gbm_prophetcal, ml_lgbm_v3_l1]
+    pesos: [1.0, 1.0]
+  # ALX fase 2, revision F2 (regla literal): miembros ML de los ponderados adoptados en M2 cash-in y M3 entradas.
+  # Mismos parametros que lab/conf/experimentos/<nombre>.yml (sin `variante_de`, que solo usa el lab).
+  ml_lgbm_v3_opt_m2_cash_in:
+    familia: ml_global
+    motor: lgbm
+    conjunto: V3
+    objetivo: l2
+    params: {num_leaves: 33, learning_rate: 0.02326, n_estimators: 388, min_child_samples: 171,
+             colsample_bytree: 0.842336, subsample: 0.961707, reg_lambda: 1.272514}
+    paso_dias: 5
+    meses_entrenamiento: 18
+    dias_pago: [15, fin]
+  ml_cat_v3:
+    familia: ml_global
+    motor: cat
+    conjunto: V3
+    objetivo: l2
+    entidad_categorica: true
+    paso_dias: 5
+    meses_entrenamiento: 18
+    dias_pago: [15, fin]
+  ml_rf_v1:
+    familia: ml_global
+    motor: rf
+    conjunto: V1
+    objetivo: l2
+    paso_dias: 5
+    meses_entrenamiento: 18
+    dias_pago: [15, fin]
+  ml_et_v1:
+    familia: ml_global
+    motor: et
+    conjunto: V1
+    objetivo: l2
+    paso_dias: 5
+    meses_entrenamiento: 18
+    dias_pago: [15, fin]
+  # Adoptado en M2 cash-in: ponderado con pesos congelados (16 origenes de seleccion; = lab/conf/experimentos).
+  ml_ens_pond_m2_cash_in:
+    familia: combinacion
+    miembros: [gbm_cal, prophet_cal, perfil_dom, ml_lgbm_v3_l1, ml_lgbm_v3_opt_m2_cash_in, ml_cat_v3]
+    pesos: [0.0, 0.144688, 0.0, 0.523809, 0.026476, 0.305027]
+  # Adoptado en M3 entradas: ponderado con pesos congelados (16 origenes de seleccion; = lab/conf/experimentos).
+  ml_ens_pond_m3_entradas:
+    familia: combinacion
+    miembros: [gbm_cal, prophet_cal, perfil_dom, ml_lgbm_v1_l1, ml_rf_v1, ml_et_v1]
+    pesos: [0.144826, 0.0, 0.0, 0.7501, 0.009533, 0.095541]
+
+  # ALX PARTE 7 (SUP-39): champions finales de la PARTE 5 (escenario S1: datos corregidos SUP-35 + V4 "as of"
+  # SUP-28, sin imputacion SUP-36), los mismos de models:/poc-daas-ml-<dataset>@champion. Familia
+  # `ml_laboratorio` (daas.forecasting.laboratorio): pronostica con ml.pronosticar.pronosticar, la funcion que
+  # envuelve el modelo registrado, con la configuracion congelada de lab/conf/experimentos y ml/conf/ensambles.
+  # `explicar`: hoja ML global que se explica en la hoja 04 (el modelo entero o su miembro de mayor peso).
+  campeon_m1:
+    familia: ml_laboratorio
+    modelo: ml_lgbm_v4_tw
+    dataset: m1
+    explicar: ml_lgbm_v4_tw
+  campeon_m2_pagado:
+    familia: ml_laboratorio
+    modelo: ml_ens_pond_m2_pagado
+    dataset: m2_pagado
+    explicar: ml_lgbm_v4_l1
+  campeon_m2_cash_in:
+    familia: ml_laboratorio
+    modelo: ml_ens_pond_m2_cash_in
+    dataset: m2_cash_in
+    explicar: ml_lgbm_v3_l1
+  campeon_m3_entradas:
+    familia: ml_laboratorio
+    modelo: ml_ens_pond_m3_entradas
+    dataset: m3_entradas
+    explicar: ml_lgbm_v1_l1
+  campeon_m3_salidas:
+    familia: ml_laboratorio
+    modelo: ml_lgbm_v1_l1
+    dataset: m3_salidas
+    explicar: ml_lgbm_v1_l1
+  campeon_m5:
+    familia: ml_laboratorio
+    modelo: ml_ens_media_top3_m5
+    dataset: m5
+    explicar: ml_lgbm_v4_l1
+
+# Banda del pronostico publicado (`band_low`, `band_high`). Vale para todas las unidades.
+#   mae_backtest : la original. Semiamplitud = error absoluto medio del backtest de cada entidad.
+#   conformal    : cuantiles de residuos fuera de muestra de varios origenes pasados, relativos al nivel
+#                  de la entidad y por tramo de horizonte. Si no hay suficientes origenes
+#                  con historia, cae a `mae_backtest` y lo avisa.
+bandas:
+  metodo: conformal
+  nivel: 0.90                  # cobertura nominal; medida en el lab: 88-89 % real en M1
+  escala: nivel                # el residuo se divide por la media de los ultimos `dias_nivel` dias <= origen
+  dias_nivel: 28
+  grupo: [bloque]              # se calibra por tramo de horizonte
+  bloques: {bloque1: [1, 7], bloque2: [8, 15]}
+  origenes_calibracion: 8      # fines de mes anteriores al backtest; cada uno cuesta un ajuste completo
+  calibracion_minima: 6        # con menos origenes (contando el del backtest) no se calibra
+  historia_minima_dias: 180    # un origen con menos historia que esto no se usa
+
+# Explicabilidad del miembro de boosting de cada receta, medida en la ventana de backtest.
+# Las variables se permutan y se suman POR GRUPO: dentro de un grupo llevan la misma informacion.
+# Salida: output/explicabilidad/importancias (la lee la hoja 04 del Anexo D).
+explicabilidad:
+  activo: true
+  shap: true
+  repeticiones: 5        # permutaciones por grupo
+  semilla: 0
+  grupos:
+    nivel_y_tendencia: [log_nivel, r7, r28, cv, frac_obs]
+    dia_de_semana: [dow, dow_rel]
+    dia_del_mes_y_pago: [dia, dias_a_fin_mes, dias_desde_pago, dias_hasta_pago, dom_rel]
+    festivos: [festivo, vispera, post, habil]
+    horizonte: [h]
+
+# Textos de la hoja 04 del Anexo D por receta (`algoritmo_o_enfoque`, `variables_utilizadas`,
+# `limitaciones_identificadas`). Una receta sin entrada aqui usa los textos originales de `publish/anexo_d/`.
+descripciones:
+  gbm_cal:
+    enfoque: >-
+      Boosting de gradiente global (un solo modelo para todas las entidades; scikit-learn
+      HistGradientBoostingRegressor), directo a 15 dias con el horizonte como variable. Predice la razon
+      entre el valor del dia y el nivel reciente de la entidad. Sin afinar hiperparametros sobre los cortes
+      de reporte.
+    variables: >-
+      Solo datos hasta el corte. Nivel y tendencia de la entidad (media de 28 dias, razon 7/28, variabilidad,
+      fraccion de dias con dato); dia de la semana y su perfil por entidad; dia del mes, dias al fin de mes,
+      dias desde y hasta el dia de pago (15 y fin de mes, corridos al habil anterior) y perfil de dia del mes
+      por entidad; festivos de Colombia, vispera y dia siguiente; horizonte.
+    limitaciones: >-
+      Subestima valores fuera del rango visto en el entrenamiento. Entidades con menos de 90 dias de historia
+      son el peor segmento. Holdout 1-15 sep con 0 observaciones reales (datos hasta 31-ago): la validacion es
+      backtest interno (SUP-02).
+  combo_gbm_prophetcal:
+    enfoque: >-
+      Promedio simple (pesos iguales y fijos) de dos modelos: (1) boosting de gradiente global
+      (scikit-learn HistGradientBoostingRegressor), directo a 15 dias; (2) Prophet por serie con regresores de
+      dias de pago y festivos y estacionalidad mensual, con respaldo estacional cuando la serie tiene pocos
+      datos. Elegido por origen rodante contra el Prophet original; sin afinar sobre los cortes de reporte.
+    variables: >-
+      Solo datos hasta el corte. Nivel y tendencia de la entidad (media de 28 dias, razon 7/28, variabilidad);
+      dia de la semana y su perfil por entidad; dia del mes y dias desde y hasta el dia de pago (15 y fin de
+      mes, corridos al habil anterior); festivos de Colombia, vispera y dia siguiente; horizonte.
+    limitaciones: >-
+      El nivel del error cambia con la ventana evaluada; lo estable es la mejora relativa frente al Prophet
+      original. Entidades con menos de 90 dias de historia son el peor segmento. La banda es conformal al 90 %
+      nominal: su cobertura real varia entre meses. Holdout 1-15 sep con 0 observaciones reales (datos hasta
+      31-ago): la validacion es backtest interno (SUP-02).
+  combo_perfil_gbml1:
+    enfoque: >-
+      Promedio simple (pesos iguales y fijos) de dos modelos: (1) perfil por dia de la semana (mediana de
+      8 semanas) por un factor de dia del mes de la red; (2) boosting de gradiente global con perdida absoluta
+      (apunta a la mediana), directo a 15 dias.
+    variables: >-
+      Solo datos hasta el corte. Nivel y tendencia de la entidad; dia de la semana; dia del mes y dias al dia
+      de pago; festivos de Colombia; horizonte.
+    limitaciones: >-
+      Los picos (pocos valores grandes sin patron de calendario) no se pronostican: el modelo apunta a la
+      mediana y SUBESTIMA el total de la red. Donde el sesgo es estable, M6 corrige ese total con un factor
+      de red medido fuera de muestra (SUP-20). Pocas series (5-6 fondos): las metricas tienen alta dispersion. Holdout 1-15 sep con
+      0 observaciones reales: la validacion es backtest interno (SUP-02).
+  # ALX fase 2 (FEAT-008).
+  ml_lgbm_v1_l1: &desc_ml_lgbm_v1_l1
+    enfoque: >-
+      Boosting de gradiente global con LightGBM (un solo modelo para todas las entidades), directo a 15 dias con
+      el horizonte como variable y perdida absoluta (apunta a la mediana). Predice la razon entre el valor del dia
+      y el nivel reciente de la entidad. Elegido por origen rodante (16 cortes) contra el boosting anterior con una
+      regla declarada antes de medir y confirmado en cortes reservados; sin afinar sobre los cortes de reporte.
+    variables: >-
+      Solo datos hasta el corte. Las del boosting anterior (nivel y tendencia, dia de la semana y su perfil, dia del
+      mes y dias a/desde el pago, festivos, horizonte) mas un calendario colombiano detallado: dia de pago 15 y fin
+      de mes, uno a tres dias despues del pago, dias habiles a/desde el pago, puentes festivos, ultimo habil antes y
+      primero despues de un bloque no habil, vispera y dia siguiente HABILES, primas, Semana Santa, temporada
+      decembrina, Feria de Cali, Carnaval de Pasto y festivos de Ecuador.
+    limitaciones: >-
+      Subestima valores fuera del rango visto en el entrenamiento. En agosto de 2026 aparecen ceros en dias habiles
+      que ningun corte anterior anticipa: el error y la banda empeoran en esa ventana. Holdout 1-15 sep con 0
+      observaciones reales: la validacion es backtest interno (SUP-02).
+  ml_ens_campeon_ml_m2_cash_in:
+    enfoque: >-
+      Promedio simple (pesos iguales y fijos) de dos pronosticos: (1) el combinado anterior (boosting global con
+      calendario + Prophet por serie con regresores de pago y festivos); (2) boosting de gradiente global con
+      LightGBM y perdida absoluta, directo a 15 dias. Elegido por origen rodante (16 cortes) con una regla declarada
+      antes de medir y confirmado en cortes reservados.
+    variables: >-
+      Solo datos hasta el corte. Nivel y tendencia de la entidad; dia de la semana y su perfil; dia del mes y dias
+      a/desde el pago; festivos de Colombia y calendario detallado (puentes, vispera y dia siguiente habiles,
+      temporadas); rezagos del mismo dia de la semana y medias exponenciales; perfil propio de la entidad en dias
+      de pago y festivos; intermitencia (dias sin dato, ceros); horizonte.
+    limitaciones: >-
+      Los depositos casi no responden al dia de pago: la ganancia frente al combinado anterior es chica (alrededor
+      de 1 punto de WAPE). Entidades con menos de 90 dias de historia son el peor segmento. Holdout 1-15 sep con 0
+      observaciones reales: la validacion es backtest interno (SUP-02).
+  # ALX fase 2, revision F2 (regla literal).
+  ml_ens_pond_m2_cash_in: &desc_ml_ens_pond_m2_cash_in
+    enfoque: >-
+      Promedio ponderado con pesos fijos de cuatro pronosticos: boosting global LightGBM con perdida absoluta (52 %),
+      CatBoost global con la entidad como categoria (31 %), Prophet por serie con regresores de pago y festivos
+      (14 %) y un LightGBM afinado (3 %). Los pesos minimizan el WAPE de 16 cortes de backtest y se congelaron antes
+      de los cortes reservados. Elegido con una regla declarada antes de medir y confirmado en cortes reservados.
+    variables: >-
+      Solo datos hasta el corte. Nivel y tendencia de la entidad; dia de la semana y su perfil; dia del mes y dias
+      a/desde el pago; festivos de Colombia y calendario detallado (puentes, vispera y dia siguiente habiles,
+      temporadas); rezagos del mismo dia de la semana y medias exponenciales; perfil propio de la entidad en dias
+      de pago y festivos; intermitencia (dias sin dato, ceros); horizonte.
+    limitaciones: >-
+      Los depositos casi no responden al dia de pago: la ganancia frente al combinado anterior es chica (alrededor
+      de 1,3 puntos de WAPE). Los pesos se ajustaron con cortes posteriores al reservado de ago-2025. Holdout 1-15
+      sep con 0 observaciones reales: la validacion es backtest interno (SUP-02).
+  ml_ens_pond_m3_entradas: &desc_ml_ens_pond_m3_entradas
+    enfoque: >-
+      Promedio ponderado con pesos fijos de tres pronosticos globales: LightGBM con perdida absoluta (75 %), el
+      boosting anterior con calendario (14 %) y ExtraTrees/RandomForest (11 %), todos directos a 15 dias. Los pesos
+      minimizan el WAPE de 16 cortes de backtest y se congelaron antes de los cortes reservados. Elegido con una
+      regla declarada antes de medir y confirmado en cortes reservados.
+    variables: >-
+      Solo datos hasta el corte. Nivel y tendencia de la sucursal; dia de la semana y su perfil; dia del mes y dias
+      a/desde el pago; festivos de Colombia y calendario colombiano detallado (pago 15 y fin de mes, dias despues
+      del pago, puentes, vispera y dia siguiente HABILES, primas, temporadas); horizonte.
+    limitaciones: >-
+      En agosto de 2026 aparecen ceros en dias habiles que ningun corte anterior anticipa: el error y la banda
+      empeoran en esa ventana. Los pesos se ajustaron con cortes posteriores al reservado de ago-2025. Holdout 1-15
+      sep con 0 observaciones reales: la validacion es backtest interno (SUP-02).
+  # ALX PARTE 7 (SUP-39): textos de los champions finales (escenario S1). M2 cash-in y M3 reutilizan los de la
+  # fase 2 (mismo modelo; cambian solo los datos corregidos de SUP-35).
+  campeon_m2_cash_in: *desc_ml_ens_pond_m2_cash_in
+  campeon_m3_entradas: *desc_ml_ens_pond_m3_entradas
+  campeon_m3_salidas: *desc_ml_lgbm_v1_l1
+  campeon_m1:
+    enfoque: >-
+      Boosting de gradiente global con LightGBM (un solo modelo para los 435 cajeros), directo a 15 dias con el
+      horizonte como variable y perdida Tweedie (para montos no negativos con ceros). Predice la razon entre el valor
+      del dia y el nivel reciente del cajero. Elegido por origen rodante (16 cortes) contra el combinado anterior con
+      una regla declarada antes de medir (R1-R5), confirmado en cortes reservados y repetido con los datos corregidos
+      y el maestro "as of" (PARTE 5); sin afinar sobre los cortes de reporte.
+    variables: >-
+      Solo datos hasta el corte. Nivel y tendencia del cajero; dia de la semana y su perfil; dia del mes y dias a/desde
+      el pago; festivos de Colombia y calendario detallado (pago 15 y fin de mes, dias despues del pago, puentes,
+      vispera y dia siguiente habiles, primas, temporadas, ferias); rezagos del mismo dia de la semana, anual y medias
+      exponenciales; perfil propio en dias de pago y festivos; intermitencia (dias sin dato, ceros); contexto del
+      maestro de cajeros al corte de cada origen (cupo, administrador, dispositivo, ciudad; ultimo snapshot <= origen,
+      nunca uno posterior) y nivel de la red de su ciudad.
+    limitaciones: >-
+      El objetivo es lo dispensado: cuando el cajero se agota la demanda queda censurada (SUP-34). Cajeros sin snapshot
+      del maestro anterior al origen quedan sin variables de contexto (NaN, sin respaldo con datos futuros). Entidades
+      con menos de 90 dias de historia son el peor segmento. Holdout 1-15 sep con 0 observaciones reales: la validacion
+      es backtest interno (SUP-02).
+  campeon_m2_pagado:
+    enfoque: >-
+      Promedio ponderado con pesos fijos de cuatro pronosticos: boosting global LightGBM con perdida absoluta (46 %),
+      CatBoost global con la entidad como categoria (41 %), Prophet por serie con regresores de pago y festivos (11 %)
+      y el boosting anterior con calendario (2 %). Los dos ML usan el contexto del maestro "as of". Los pesos minimizan
+      el WAPE de 16 cortes de backtest y se congelaron antes de los cortes reservados. Elegido con una regla declarada
+      antes de medir y repetido con los datos corregidos y el maestro "as of" (PARTE 5).
+    variables: >-
+      Solo datos hasta el corte. Nivel y tendencia del cajero; dia de la semana y su perfil; dia del mes y dias a/desde
+      el pago; festivos de Colombia y calendario detallado; rezagos del mismo dia de la semana, anual y medias
+      exponenciales; perfil propio en dias de pago y festivos; intermitencia; contexto del maestro al corte de cada
+      origen (cupo, administrador, ciudad; ultimo snapshot <= origen) y el cash-in del mismo cajero hasta el origen.
+    limitaciones: >-
+      Demanda censurada en cajeros que se agotan (SUP-34). Los pesos se ajustaron con cortes posteriores al reservado de
+      ago-2025. La ganancia frente al combinado anterior es de alrededor de 2 puntos de WAPE en seleccion y casi nula en
+      el chequeo 17-31 ago. Holdout 1-15 sep con 0 observaciones reales: la validacion es backtest interno (SUP-02).
+  campeon_m5:
+    enfoque: >-
+      Promedio simple (pesos iguales y fijos) de tres boosting globales LightGBM con perdida absoluta, directos a 15
+      dias: con calendario detallado y rezagos (V3), con calendario detallado afinado (V1) y con contexto de la ciudad
+      del fondo (V4). Elegido por origen rodante (16 cortes) contra el combinado anterior con una regla declarada antes
+      de medir, confirmado en cortes reservados y repetido con los datos corregidos (PARTE 5).
+    variables: >-
+      Solo datos hasta el corte. Nivel y tendencia del fondo; dia de la semana y su perfil; dia del mes y dias a/desde
+      el pago; festivos de Colombia y calendario detallado; rezagos del mismo dia de la semana, anual y medias
+      exponenciales; perfil propio en dias de pago y festivos; intermitencia; ciudad del fondo y nivel de su red;
+      horizonte.
+    limitaciones: >-
+      Los picos de los clientes (pocos valores grandes sin patron de calendario) no se pronostican: el modelo apunta a
+      la mediana y SUBESTIMA el total de la red; M6 corrige ese total con un factor movil (SUP-20). Seis fondos: las
+      metricas tienen alta dispersion. Holdout 1-15 sep con 0 observaciones reales: la validacion es backtest interno
+      (SUP-02).

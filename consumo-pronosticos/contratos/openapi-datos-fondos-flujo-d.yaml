@@ -1,0 +1,620 @@
+openapi: 3.1.0
+info:
+  title: Data API - Efectivo - Funds engine (TARGET contract, PENDING)
+  description: >
+    TARGET contract that gestion-ms needs from the Data team for Flow D (Funds).
+    This API DOES NOT EXIST YET: today gestion-ms serves these results from a
+    contractual mock, switchable via the 'balance-source' configuration key
+    (MOCK | DATOS_API) without changing the use cases. THE DATA TEAM OWNS THE
+    COMPUTATION: it computes the M6 chained balance per fund, denomination and
+    day; applies the reference bands (RN-72) and returns the per-denomination
+    classification (EN_BANDA, FALTANTE, EXCEDENTE, DESBALANCE_DENOMINACION);
+    generates and returns the derived alerts; and returns the observed available
+    (with the Reconstruido mark), the projected inflow per channel, the estimated
+    split per denomination and the data-type metadata (OBSERVADO, PROYECTADO,
+    SIMULADO, ESTIMADO, SIN_REGISTRO) needed to explain the results. It also
+    returns a recomputed scenario (balance after a proposed action). gestion-ms
+    consumes, validates and exposes these results WITHOUT recomputing the
+    balance, re-evaluating thresholds or regenerating alerts; it owns the fund
+    actions (RN-84), enablements (RN-75), Anexo E costs, decisions and history.
+    Internal responses carry a 'message' field. Transaction-Id is mandatory.
+    A 204 means there is no data for the given filters; gestion-ms maps it to
+    block state SIN_DATOS, never to a zero or an empty list.
+    Channels that feed the funds (Corresponsales and Clientes, per RN-48).
+    The amount per channel is a signed integer
+    (CONFIRMED CONVENTION, per the approved prototype: positive =
+    cash enters the fund, negative = cash leaves the fund).
+    Single source of the displayed band: the band returned by this API. The
+    fund_band catalog in gestion-ms is only an input/explanation catalog.
+  version: 2.1.0
+  contact:
+    name: Arquitectura de Soluciones - PoC Efectivo
+servers:
+  - url: http://datos-efectivo-ms-poc.bancolombia-poc-efectivo.svc.cluster.local
+    description: Internal cluster DNS (target; today replaced by a mock in gestion-ms)
+tags:
+  - name: funds-engine
+    description: M6 funds engine results computed by the Data team (HU-10, HU-11)
+paths:
+  /datos-efectivo/v1/funds/map:
+    get:
+      tags: [funds-engine]
+      summary: Computed funds map (HU-10)
+      description: >
+        Returns the COMPUTED funds map: per fund (and denomination) the chained
+        M6 balance per day, the classification against the reference bands
+        (EN_BANDA/FALTANTE/EXCEDENTE/DESBALANCE_DENOMINACION), the worst state per
+        day, the out-of-band list, the derived alerts, plus the observed opening
+        balance (Reconstruido mark), the projected inflow per channel and the
+        estimated split per denomination, for a run/cut-off/scenario. The band
+        comparison and the alert generation are performed by the Data team, not
+        by gestion-ms.
+      operationId: getFundsMapComputed
+      parameters:
+        - name: Transaction-Id
+          in: header
+          required: true
+          schema: { type: string }
+        - name: ciudad
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/Ciudad' }
+        - name: fondo
+          in: query
+          required: false
+          schema: { type: string }
+        - name: corrida
+          in: query
+          required: true
+          schema: { type: string }
+        - name: corte
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: escenario
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Computed funds map available
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FundsMapComputedResponse' }
+              examples:
+                mapaCalculado:
+                  summary: One fund with one balance and one alert (synthetic values)
+                  value:
+                    statusCode: "200"
+                    status: SUCCESS
+                    message: "OK - funds map computed"
+                    data:
+                      fondos:
+                        - fondoId: "CALI|TDV_001"
+                          ciudad: CALI
+                          peorEstadoPorDia:
+                            - { fecha: "2026-09-03", estado: FALTANTE, diaNoHabil: false }
+                          saldosPorBilleteDia:
+                            - { billete: "$10.000", fecha: "2026-09-03", saldo: -250000000, banda: { min: 40000000, max: 180000000 }, estado: FALTANTE, tipoDato: SIMULADO }
+                          disponibleObservado: { valor: 820000000, tipoDato: OBSERVADO, reconstruido: true, nota: "Histórico TDV 001 convertido de piezas a pesos" }
+                          flujosPorCanal:
+                            - { canal: CLIENTES, fecha: "2026-09-03", monto: 40000000, tipoDato: PROYECTADO }
+                          repartoPorBillete:
+                            - { billete: "$10.000", fecha: "2026-09-03", monto: 30000000, tipoDato: ESTIMADO }
+                          alertas:
+                            - { fondoId: "CALI|TDV_001", billete: "$10.000", fecha: "2026-09-03", tipoRegla: FALTANTE_FONDO, criticidad: CRITICA, monto: 250000000, tipoDato: SIMULADO }
+                      fueraDeBanda:
+                        - { fondoId: "CALI|TDV_001", billete: "$10.000", estado: FALTANTE, dias: ["2026-09-03"], montoMaximo: 180000000 }
+                      corrida: "0007"
+                      corte: "2026-08-31"
+                      diasNoHabiles: ["2026-09-05", "2026-09-06"]
+                      diasSinRegistro: []
+                    timestamp: "2026-09-01T14:30:00Z"
+                    transactionId: "tx-9f2c1a"
+        '204': { $ref: '#/components/responses/NoData' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '408': { $ref: '#/components/responses/RequestTimeout' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /datos-efectivo/v1/funds/{fondoId}/day:
+    get:
+      tags: [funds-engine]
+      summary: Computed fund-day detail (HU-11)
+      description: >
+        Returns the COMPUTED detail of a fund on a given day: observed available
+        (Reconstruido mark), projected inflow per channel, estimated split per
+        denomination, the per-denomination state against its band and the derived
+        alerts, with their data-type marks, for a run/cut-off/scenario. The
+        classification and the alerts are computed by the Data team.
+      operationId: getFundDayComputed
+      parameters:
+        - name: Transaction-Id
+          in: header
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/FondoIdPath'
+        - name: dia
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: corrida
+          in: query
+          required: true
+          schema: { type: string }
+        - name: corte
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: escenario
+          in: query
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: Computed fund-day detail available
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FundDayComputedResponse' }
+              examples:
+                detalleCalculado:
+                  summary: Fund-day with inflow per channel (Corresponsales/Clientes) and states (synthetic values)
+                  value:
+                    statusCode: "200"
+                    status: SUCCESS
+                    message: "OK - fund day computed"
+                    data:
+                      fondoId: "CALI|TDV_001"
+                      dia: "2026-09-03"
+                      diaNoHabil: false
+                      disponibleObservado: { valor: 820000000, tipoDato: OBSERVADO, reconstruido: true, nota: null }
+                      aportePorCanal:
+                        - { canal: CORRESPONSALES, fecha: "2026-09-03", monto: 60000000, tipoDato: PROYECTADO }
+                        - { canal: CLIENTES, fecha: "2026-09-03", monto: 40000000, tipoDato: PROYECTADO }
+                      repartoPorBillete:
+                        - { billete: "$10.000", fecha: "2026-09-03", monto: 30000000, tipoDato: ESTIMADO }
+                        - { billete: "$50.000", fecha: "2026-09-03", monto: 25000000, tipoDato: ESTIMADO }
+                      estadosBillete:
+                        - { billete: "$100.000", fecha: "2026-09-03", saldo: 220000000, banda: { min: 100000000, max: 400000000 }, estado: EN_BANDA, tipoDato: SIMULADO }
+                        - { billete: "$10.000", fecha: "2026-09-03", saldo: -250000000, banda: { min: 40000000, max: 180000000 }, estado: FALTANTE, tipoDato: SIMULADO }
+                      alertas:
+                        - { fondoId: "CALI|TDV_001", billete: "$10.000", fecha: "2026-09-03", tipoRegla: FALTANTE_FONDO, criticidad: CRITICA, monto: 250000000, tipoDato: SIMULADO }
+                      corrida: "0007"
+                      corte: "2026-08-31"
+                      escenario: base
+                    timestamp: "2026-09-01T14:30:00Z"
+                    transactionId: "tx-9f2c1a"
+        '204': { $ref: '#/components/responses/NoData' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '408': { $ref: '#/components/responses/RequestTimeout' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /datos-efectivo/v1/funds/{fondoId}/scenario:
+    post:
+      tags: [funds-engine]
+      summary: Recomputed scenario - balance after a proposed action (HU-11)
+      description: >
+        Given a fund, day and a proposed action (e.g. a transfer of an amount),
+        the Data team recomputes and returns, per denomination, the balance
+        BEFORE and AFTER for the ORIGIN and the DESTINATION fund of a transfer
+        (one fund with role PROPIO for the other actions), with the band and the
+        state before/after, so gestion-ms can show it without reimplementing the
+        M6 formula. A 204 means there is nothing to recompute. gestion-ms owns the action rules
+        and cost; the recomputed balance is owned by the Data team.
+      operationId: recomputeFundScenario
+      parameters:
+        - name: Transaction-Id
+          in: header
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/FondoIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScenarioRequest' }
+      responses:
+        '200':
+          description: Recomputed scenario available
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ScenarioResponse' }
+              examples:
+                escenarioTraslado:
+                  summary: Transfer scenario A-102 (synthetic values; T002 band is illustrative)
+                  value:
+                    statusCode: "200"
+                    status: SUCCESS
+                    message: "OK - scenario recomputed"
+                    data:
+                      fondoId: "CALI|TDV_001"
+                      dia: "2026-09-03"
+                      saldosPorFondo:
+                        - { fondoId: "CALI|TDV_002", rol: SALIDA, billete: "$10.000", saldoAntes: 380000000, saldoDespues: 80000000, banda: { min: 40000000, max: 400000000 }, estadoAntes: EN_BANDA, estadoDespues: EN_BANDA, tipoDato: SIMULADO }
+                        - { fondoId: "CALI|TDV_001", rol: ENTRADA, billete: "$10.000", saldoAntes: -250000000, saldoDespues: 50000000, banda: { min: 40000000, max: 180000000 }, estadoAntes: FALTANTE, estadoDespues: EN_BANDA, tipoDato: SIMULADO }
+                      corrida: "0007"
+                      corte: "2026-08-31"
+                    timestamp: "2026-09-01T14:30:00Z"
+                    transactionId: "tx-9f2c1a"
+        '204': { $ref: '#/components/responses/NoData' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '408': { $ref: '#/components/responses/RequestTimeout' }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+components:
+  parameters:
+    FondoIdPath:
+      name: fondoId
+      in: path
+      required: true
+      schema: { type: string }
+      description: Fund identifier (Anexo D code, e.g. CALI|TDV_001)
+  schemas:
+    Ciudad:
+      type: string
+      enum: [CALI, PASTO, IPIALES]
+    Canal:
+      type: string
+      enum: [CORRESPONSALES, CLIENTES]
+      description: Channels that feed the funds (Corresponsales and Clientes, per RN-48).
+    Billete:
+      type: string
+      enum: ["$100.000", "$50.000", "$20.000", "$10.000", "$5.000", "$2.000"]
+    RolSaldo:
+      type: string
+      enum: [SALIDA, ENTRADA, PROPIO]
+      description: SALIDA/ENTRADA = origin/destination fund of a transfer; PROPIO = the own fund in any other action.
+    TipoDato:
+      type: string
+      enum: [OBSERVADO, PROYECTADO, SIMULADO, ESTIMADO, SIN_REGISTRO]
+    EstadoBillete:
+      type: string
+      enum: [EN_BANDA, EXCEDENTE, FALTANTE, DESBALANCE_DENOMINACION]
+      description: Per-denomination state computed by the Data team against the reference band (RN-72)
+    Criticidad:
+      type: string
+      enum: [CRITICA, MEDIA, MODERADA]
+    TipoReglaAlerta:
+      type: string
+      enum: [FALTANTE_FONDO, EXCEDENTE_FONDO, EXCEDENTE_NO_EVACUABLE, DESBALANCE_DENOMINACION]
+    Banda:
+      type: object
+      description: >
+        Reference band used by the Data team to classify (RN-72). This is the
+        single source of the band that gestion-ms and the BFF display.
+      required: [min, max]
+      properties:
+        min: { type: integer, format: int64 }
+        max: { type: integer, format: int64 }
+    AlertaCalculada:
+      type: object
+      description: Alert generated by the Data team from the computed classification
+      required: [fondoId, billete, fecha, tipoRegla, criticidad, monto, tipoDato]
+      properties:
+        fondoId: { type: string }
+        billete: { type: string }
+        fecha: { type: string, format: date }
+        tipoRegla: { $ref: '#/components/schemas/TipoReglaAlerta' }
+        criticidad: { $ref: '#/components/schemas/Criticidad' }
+        monto: { type: integer, format: int64, description: "Amount at risk for the denomination" }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    SaldoBilleteDia:
+      type: object
+      description: Chained M6 balance and computed state of a denomination on a day
+      required: [billete, fecha, saldo, banda, estado, tipoDato]
+      properties:
+        billete: { type: string, example: "$50.000" }
+        fecha: { type: string, format: date }
+        saldo: { type: integer, format: int64, description: "Chained M6 balance for the denomination" }
+        banda: { $ref: '#/components/schemas/Banda' }
+        estado: { $ref: '#/components/schemas/EstadoBillete' }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    PeorEstadoDia:
+      type: object
+      required: [fecha, estado, diaNoHabil]
+      properties:
+        fecha: { type: string, format: date }
+        estado: { $ref: '#/components/schemas/EstadoBillete' }
+        diaNoHabil: { type: boolean }
+    FueraDeBanda:
+      type: object
+      required: [fondoId, billete, estado, dias, montoMaximo]
+      properties:
+        fondoId: { type: string }
+        billete: { type: string }
+        estado: { $ref: '#/components/schemas/EstadoBillete' }
+        dias:
+          type: array
+          minItems: 1
+          items: { type: string, format: date }
+        montoMaximo: { type: integer, format: int64 }
+    FlujoCanalDia:
+      type: object
+      description: Projected contribution of a channel on a day (Corresponsales or Clientes)
+      required: [canal, fecha, monto, tipoDato]
+      properties:
+        canal: { $ref: '#/components/schemas/Canal' }
+        fecha: { type: string, format: date }
+        monto:
+          type: integer
+          format: int64
+          description: >
+            Signed integer in COP. CONFIRMED CONVENTION (per the approved
+            prototype): positive = cash enters the fund, negative = cash leaves
+            the fund.
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    RepartoBilleteDia:
+      type: object
+      description: Estimated split per denomination on a day
+      required: [billete, fecha, monto, tipoDato]
+      properties:
+        billete: { type: string, example: "$50.000" }
+        fecha: { type: string, format: date }
+        monto: { type: integer, format: int64 }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+    DisponibleObservado:
+      type: object
+      description: Observed available with the Reconstruido mark
+      required: [valor, tipoDato, reconstruido]
+      properties:
+        valor: { type: integer, format: int64 }
+        tipoDato: { $ref: '#/components/schemas/TipoDato' }
+        reconstruido: { type: boolean }
+        nota:
+          anyOf:
+            - { type: string }
+            - type: "null"
+    FondoComputed:
+      type: object
+      required: [fondoId, ciudad, peorEstadoPorDia, saldosPorBilleteDia, disponibleObservado, flujosPorCanal, repartoPorBillete, alertas]
+      properties:
+        fondoId: { type: string, example: "CALI|TDV_001" }
+        ciudad: { $ref: '#/components/schemas/Ciudad' }
+        peorEstadoPorDia:
+          type: array
+          items: { $ref: '#/components/schemas/PeorEstadoDia' }
+        saldosPorBilleteDia:
+          type: array
+          description: Chained M6 balance and classification per denomination and day (computed)
+          items: { $ref: '#/components/schemas/SaldoBilleteDia' }
+        disponibleObservado: { $ref: '#/components/schemas/DisponibleObservado' }
+        flujosPorCanal:
+          type: array
+          items: { $ref: '#/components/schemas/FlujoCanalDia' }
+        repartoPorBillete:
+          type: array
+          items: { $ref: '#/components/schemas/RepartoBilleteDia' }
+        alertas:
+          type: array
+          items: { $ref: '#/components/schemas/AlertaCalculada' }
+    FundsMapComputedResponse:
+      type: object
+      required: [statusCode, status, message, data, timestamp, transactionId]
+      properties:
+        statusCode: { type: string, pattern: '^[0-9]{3}$', example: "200" }
+        status: { type: string, enum: [SUCCESS, ERROR], example: "SUCCESS" }
+        message: { type: string, example: "OK - funds map computed" }
+        data:
+          type: object
+          required: [fondos, fueraDeBanda, corrida, corte, diasNoHabiles, diasSinRegistro]
+          properties:
+            fondos:
+              type: array
+              items: { $ref: '#/components/schemas/FondoComputed' }
+            fueraDeBanda:
+              type: array
+              items: { $ref: '#/components/schemas/FueraDeBanda' }
+            corrida: { type: string, pattern: '^[0-9]{4}$', example: "0007" }
+            corte: { type: string, format: date, example: "2026-08-31" }
+            diasNoHabiles:
+              type: array
+              items: { type: string, format: date }
+            diasSinRegistro:
+              type: array
+              items: { type: string, format: date }
+        timestamp: { type: string, format: date-time }
+        transactionId: { type: string, minLength: 1 }
+    FundDayComputedResponse:
+      type: object
+      required: [statusCode, status, message, data, timestamp, transactionId]
+      properties:
+        statusCode: { type: string, pattern: '^[0-9]{3}$', example: "200" }
+        status: { type: string, enum: [SUCCESS, ERROR], example: "SUCCESS" }
+        message: { type: string, example: "OK - fund day computed" }
+        data:
+          type: object
+          required: [fondoId, dia, diaNoHabil, disponibleObservado, aportePorCanal, repartoPorBillete, estadosBillete, alertas, corrida, corte, escenario]
+          properties:
+            fondoId: { type: string }
+            dia: { type: string, format: date }
+            diaNoHabil: { type: boolean }
+            disponibleObservado: { $ref: '#/components/schemas/DisponibleObservado' }
+            aportePorCanal:
+              type: array
+              description: "Projected contribution per channel (Corresponsales and Clientes), signed amount (confirmed convention: positive enters, negative leaves)"
+              items: { $ref: '#/components/schemas/FlujoCanalDia' }
+            repartoPorBillete:
+              type: array
+              items: { $ref: '#/components/schemas/RepartoBilleteDia' }
+            estadosBillete:
+              type: array
+              description: Per-denomination state against its band (computed by Data)
+              items: { $ref: '#/components/schemas/SaldoBilleteDia' }
+            alertas:
+              type: array
+              items: { $ref: '#/components/schemas/AlertaCalculada' }
+            corrida: { type: string, pattern: '^[0-9]{4}$', example: "0007" }
+            corte: { type: string, format: date, example: "2026-08-31" }
+            escenario: { type: string, minLength: 1, example: "base" }
+        timestamp: { type: string, format: date-time }
+        transactionId: { type: string, minLength: 1 }
+    ScenarioRequest:
+      type: object
+      description: Proposed action for which the Data team recomputes the resulting balance
+      required: [dia, corrida, corte, accion]
+      properties:
+        dia: { type: string, format: date }
+        corrida: { type: string }
+        corte: { type: string, format: date }
+        escenario:
+          anyOf:
+            - { type: string }
+            - type: "null"
+        accion:
+          type: object
+          required: [tipo, monto]
+          properties:
+            tipo: { type: string, enum: [TRASLADO, VENTA, CONSIGNACION, RETIRO, CAMBIO_DENOMINACION, INTERCAMBIO] }
+            billete:
+              anyOf:
+                - { type: string }
+                - type: "null"
+            monto: { type: integer, format: int64, description: "Multiple of a bundle (100 notes)" }
+            fondoDestino:
+              description: For transfers; null otherwise
+              anyOf:
+                - { type: string }
+                - type: "null"
+    SaldoEscenarioBillete:
+      type: object
+      description: >
+        Balance before and after a proposed action for one fund and denomination,
+        with its band and state before/after (computed by the Data team).
+        Balances may be negative (projected shortfall).
+      required: [fondoId, rol, billete, saldoAntes, saldoDespues, banda, estadoAntes, estadoDespues, tipoDato]
+      properties:
+        fondoId: { type: string, example: "CALI|TDV_001" }
+        rol: { $ref: '#/components/schemas/RolSaldo' }
+        billete: { $ref: '#/components/schemas/Billete' }
+        saldoAntes: { type: integer, format: int64 }
+        saldoDespues: { type: integer, format: int64 }
+        banda: { $ref: '#/components/schemas/Banda' }
+        estadoAntes: { $ref: '#/components/schemas/EstadoBillete' }
+        estadoDespues: { $ref: '#/components/schemas/EstadoBillete' }
+        tipoDato: { type: string, const: SIMULADO }
+    ScenarioResponse:
+      type: object
+      required: [statusCode, status, message, data, timestamp, transactionId]
+      properties:
+        statusCode: { type: string, pattern: '^[0-9]{3}$', example: "200" }
+        status: { type: string, enum: [SUCCESS, ERROR], example: "SUCCESS" }
+        message: { type: string, example: "OK - scenario recomputed" }
+        data:
+          type: object
+          required: [fondoId, dia, saldosPorFondo, corrida, corte]
+          properties:
+            fondoId: { type: string }
+            dia: { type: string, format: date }
+            saldosPorFondo:
+              type: array
+              minItems: 1
+              description: >
+                Before/after balance per fund and denomination for the ORIGIN and
+                the DESTINATION of a transfer (one fund with role PROPIO for the
+                other actions), with band and state before/after; computed by the Data team.
+              items: { $ref: '#/components/schemas/SaldoEscenarioBillete' }
+            corrida: { type: string, pattern: '^[0-9]{4}$', example: "0007" }
+            corte: { type: string, format: date, example: "2026-08-31" }
+        timestamp: { type: string, format: date-time }
+        transactionId: { type: string, minLength: 1 }
+    ProblemDetails:
+      type: object
+      description: RFC 7807 problem detail (internal variant, with message field)
+      required: [status, code, message, transactionId, timestamp]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string, example: "VALIDATION-400" }
+        message: { type: string }
+        transactionId: { type: string, minLength: 1 }
+        timestamp: { type: string, format: date-time }
+        fields:
+          type: array
+          items:
+            type: object
+            required: [field, reason]
+            properties:
+              field: { type: string }
+              reason: { type: string }
+  headers:
+    TransactionId:
+      description: Transaction identifier echoed by the service
+      schema: { type: string }
+      example: "tx-9f2c1a"
+  responses:
+    NoData:
+      description: >
+        No data for the given filters (ausencia de datos). No body. gestion-ms maps it
+        to block state SIN_DATOS; it is never turned into zeros or empty lists.
+      headers:
+        Transaction-Id: { $ref: '#/components/headers/TransactionId' }
+    BadRequest:
+      description: Invalid or missing input
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+          examples:
+            validacion:
+              value:
+                status: 400
+                code: "VALIDATION-400"
+                message: "Invalid or missing input"
+                transactionId: "tx-9f2c1a"
+                timestamp: "2026-09-01T14:30:00Z"
+                fields:
+                  - { field: "corte", reason: "Required" }
+    NotFound:
+      description: Fund not found in the Data team catalog
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+          examples:
+            fondoInexistente:
+              value:
+                status: 404
+                code: "NOTFOUND-404"
+                message: "Fund not found"
+                transactionId: "tx-9f2c1a"
+                timestamp: "2026-09-01T14:30:00Z"
+    RequestTimeout:
+      description: Request processing exceeded the time budget
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+          examples:
+            tiempoAgotado:
+              value:
+                status: 408
+                code: "REQTIMEOUT-408"
+                message: "Request time budget exceeded"
+                transactionId: "tx-9f2c1a"
+                timestamp: "2026-09-01T14:30:00Z"
+    InternalError:
+      description: Unhandled server error
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+          examples:
+            errorInterno:
+              value:
+                status: 500
+                code: "INTERNAL-500"
+                message: "Unexpected error"
+                transactionId: "tx-9f2c1a"
+                timestamp: "2026-09-01T14:30:00Z"
+    GatewayTimeout:
+      description: An upstream dependency did not answer in time
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ProblemDetails' }
+          examples:
+            dependenciaSinRespuesta:
+              value:
+                status: 504
+                code: "GATEWAY-504"
+                message: "Upstream dependency did not respond"
+                transactionId: "tx-9f2c1a"
+                timestamp: "2026-09-01T14:30:00Z"

@@ -1,0 +1,5 @@
+# Theta dinámico optimizado, estacionalidad semanal. Sin calendario de pagos.
+familia: estadistico_local
+modelo: DynamicOptimizedTheta
+params: {season_length: 7}
+min_obs: 30              # mismo umbral de respaldo que el pipeline

@@ -1,0 +1,3 @@
+# Promedio simple de dos familias que apuntan a la mediana (perfil local + boosting global con L1).
+familia: combinacion
+miembros: [perfil_dom, gbm_cal_l1]

@@ -1,0 +1,10 @@
+# ALX fase 2 (E2 variables, L1 para M4/M5). Hipotesis: el contexto (red de la ciudad del fondo: momento 7/28 dias
+# y perfil semanal; la ciudad sale del id CIUDAD|TDV) mejora a V3 con perdida L1. El corredor inyecta `contexto`;
+# sin el el grupo queda NaN.
+familia: ml_global
+motor: lgbm
+conjunto: V4
+objetivo: l1
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

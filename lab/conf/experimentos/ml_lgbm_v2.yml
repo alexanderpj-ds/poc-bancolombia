@@ -1,0 +1,10 @@
+# ALX fase 2 (E2 variables). Hipotesis: rezagos y memoria anual mejoran a V1: mismo dia de semana mas reciente,
+# medias exponenciales 7/28, r14/r91, volatilidad 7 dias, pendiente 28 dias, cuantil 90 y maximo 28 dias, y el mismo
+# dia de hace 364 dias (todo rezago efectivo >= h por construccion: variables en s, objetivo en s+h).
+familia: ml_global
+motor: lgbm
+conjunto: V2
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

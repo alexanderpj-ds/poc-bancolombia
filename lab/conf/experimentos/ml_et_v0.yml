@@ -1,0 +1,11 @@
+# ALX fase 2 (E1 motor). Hipotesis: ExtraTrees (cortes al azar, aun menos varianza que RandomForest) con las
+# variables de gbm_cal (V0). No acepta NaN: imputa la mediana DENTRO del fit + indicador.
+# Misma hipotesis que gbm_cal con otra implementacion -> variante (k = 2 si la referencia es gbm_cal).
+familia: ml_global
+variante_de: gbm_cal
+motor: et
+conjunto: V0
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

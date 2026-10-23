@@ -1,0 +1,6 @@
+# Perfil_dom (mediana) corrido a medio camino de la media. Pregunta: cuánto WAPE cuesta quitar sesgo.
+familia: perfil_calibrado
+variante_de: perfil_dom
+base: perfil_dom
+lam: 0.5
+dias: 180                 # ventana de la razón media/mediana (la misma de model_u6.yml → ventana_dias)

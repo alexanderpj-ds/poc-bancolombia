@@ -1,0 +1,5 @@
+# Descomposición con dos estacionalidades (semana y ~mes) + ETS sobre la tendencia. Sin calendario de pagos.
+familia: estadistico_local
+modelo: MSTL
+params: {season_length: [7, 30]}
+min_obs: 30              # mismo umbral de respaldo que el pipeline

@@ -1,0 +1,11 @@
+# ALX fase 2 (E2 variables). Hipotesis: el contexto mejora a V3: cupo, tipo y administrador del cajero (maestro
+# VIGENTE: posible fuga leve declarada, solo se adopta con margen), cupo maximo de la sucursal (M3), red de la ciudad
+# (momento 7/28 dias y perfil semanal) y el objetivo hermano (M2 pagado <-> cash_in, M3 entradas <-> salidas).
+# El corredor ml/correr_ml.py inyecta `contexto`; sin el (p. ej. en las guardas del lab) el grupo queda NaN.
+familia: ml_global
+motor: lgbm
+conjunto: V4
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

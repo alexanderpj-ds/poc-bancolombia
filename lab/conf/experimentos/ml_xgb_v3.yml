@@ -1,0 +1,8 @@
+# ALX fase 2 (E4 motor, FEAT-007 paso 9; V* elegido en el cribado). Hipotesis: XGBoost (hist, profundidad 6) sobre V*: arboles por nivel en lugar de por hoja.
+familia: ml_global
+motor: xgb
+conjunto: V3
+objetivo: l2
+paso_dias: 5
+meses_entrenamiento: 18
+dias_pago: [15, fin]

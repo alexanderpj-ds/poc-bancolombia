@@ -1,0 +1,11 @@
+# ALX fase 2 (E6, FEAT-007 paso 10), m2_pagado. Media simple del top-3 ML de seleccion (D10 a).
+# Pesos iguales.
+familia: combinacion
+miembros:
+- ml_cat_v4
+- ml_lgbm_v4_l1
+- ml_lgbm_v4_opt_m2_pagado
+pesos:
+- 1.0
+- 1.0
+- 1.0
