@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from daas import alx
 from daas.costs import anexo_e
 from daas.decision import alerts as alerts_mod
 from daas.decision import optimizer
@@ -54,7 +55,7 @@ from daas.lineage import manifest
 from daas.modules.branches_m3.balance import simulate_balance_m3
 from daas.modules.branches_m3.config import load_config
 from daas.modules.branches_m3.dataset import load_series_m3
-from daas.modules.branches_m3.policy import explain_action, load_policy, policy_params
+from daas.modules.branches_m3.policy import explain_action, load_policy, min_collection_factor, policy_params
 from daas.publish import contracts as contracts_mod
 from daas.publish import explainability as explainability
 from daas.publish.contracts import publish_contract
@@ -224,6 +225,72 @@ def _metrics_block(
     return pd.DataFrame(rows, columns=columns), n_obs_by_target
 
 
+def min_collection_amount(fixed: float | None, rate_10k: float | None, factor: float) -> float | None:
+    """Monto minimo de recoleccion: solucion de `monto <= factor x (fijo + monto/10.000 x tarifa)` (SUP-43).
+
+    Devuelve el mayor monto cuya recoleccion no supera `factor` veces su costo del Anexo E:
+    `factor x fijo / (1 - factor x tarifa / 10.000)`. Sin costo (sin transportadora o sin tarifa) -> None (la
+    sucursal no omite nada). `factor x tarifa >= 10.000` -> ValueError (todo monto seria antieconomico).
+    """
+    if fixed is None or rate_10k is None or pd.isna(fixed) or pd.isna(rate_10k):
+        return None
+    if factor * float(rate_10k) >= 10000.0:
+        raise ValueError(f"monto_minimo_recoleccion: factor x tarifa >= 10.000 ({factor} x {rate_10k}).")
+    return factor * float(fixed) / (1.0 - factor * float(rate_10k) / 10000.0)
+
+
+def _min_collection_by_branch(branches: list, factor: float) -> dict[str, float | None]:
+    """Monto minimo de recoleccion por sucursal con su tarifa de recoleccion del Anexo E (SUP-43)."""
+    offices = storage.read_table(_URI_OFFICES).drop_duplicates(subset=["cod_sucursal"])
+    offices = offices.set_index(offices["cod_sucursal"].astype(str))
+    tar = pd.DataFrame({"cod_cajero": [str(b) for b in branches]})
+    tar["transportadora"] = tar["cod_cajero"].map(offices["transportadora"])
+    tar["ubicacion"] = tar["cod_cajero"].map(offices["ubicacion"])
+    if alx.interruptor("m3_escala_anexo_a") and "escalas" in offices.columns:
+        tar["escalas"] = tar["cod_cajero"].map(offices["escalas"])
+    tar["concepto"] = anexo_e.branch_concepts(tar)
+    tar["accion"] = "recoleccion"
+    c0 = anexo_e.compute_costs(tar.assign(monto=0.0))["costo"]
+    c1 = anexo_e.compute_costs(tar.assign(monto=10000.0))["costo"]
+    out: dict[str, float | None] = {}
+    for code, fixed, high in zip(tar["cod_cajero"], c0, c1, strict=False):
+        rate = None if pd.isna(fixed) or pd.isna(high) else float(high) - float(fixed)
+        value = min_collection_amount(None if pd.isna(fixed) else float(fixed), rate, factor)
+        if value is None:
+            logger.warning("Sucursal %s sin costo de recoleccion en el Anexo E: no se omite ninguna (SUP-43).", code)
+        out[code] = value
+    return out
+
+
+def _omitted_metric_row(balance_df: pd.DataFrame) -> dict:
+    """Fila informativa `recoleccion_omitida_monto` de M3 (SUP-43); se emite tambien con 0 omisiones."""
+    omitted = (
+        balance_df[balance_df["recoleccion_omitida"] > 0]
+        if "recoleccion_omitida" in balance_df.columns
+        else balance_df.iloc[0:0]
+    )
+    id_col = "cod_cajero" if "cod_cajero" in omitted.columns else "cod_sucursal"
+    branches = sorted({str(c) for c in omitted[id_col]}) if not omitted.empty else []
+    total = float(omitted["recoleccion_omitida"].sum()) if not omitted.empty else 0.0
+    return {
+        "bloque": "recoleccion_omitida_monto",
+        "objetivo": None,
+        "wape": float("nan"),
+        "mae": float("nan"),
+        "bias": float("nan"),
+        "n_obs": int(len(omitted)),
+        "n_excluidas": int(len(branches)),
+        "nota": (
+            f"Recolecciones de efectivo ocioso omitidas porque el monto no superaba el costo de la visita: "
+            f"{len(omitted)} por {total:,.0f} COP en {len(branches)} sucursal(es)"
+            + (f" ({', '.join(branches)})" if branches else "")
+            + "; el efectivo queda en la bóveda dentro del cupo (SUP-43)."
+        ),
+        "origen": None,  # mismo orden de columnas que el contrato v1 (origen antes de valor)
+        "valor": total,
+    }
+
+
 def _process_m3(config: dict, dates: list[_dt.date]) -> tuple[ModelSummaryM3, dict[str, pd.DataFrame]]:
     """Procesa el modelo M3 end-to-end y devuelve sus 4 bloques de salida.
 
@@ -263,6 +330,11 @@ def _process_m3(config: dict, dates: list[_dt.date]) -> tuple[ModelSummaryM3, di
     balances_simulated: list[pd.DataFrame] = []
     backtests_by_target: dict[str, list[pd.DataFrame]] = {obj: [] for obj in targets}
     summary = ModelSummaryM3(n_branches=int(len(branches)))
+    # SUP-43: monto minimo de recoleccion por sucursal (solo con el interruptor; si no, sin minimo = v1).
+    min_by_branch: dict[str, float | None] = {}
+    with_min = alx.interruptor("monto_minimo_recoleccion")
+    if with_min:
+        min_by_branch = _min_collection_by_branch(branches, min_collection_factor(pol))
 
     # Pronostico por objetivo para TODAS las sucursales a la vez (camino unico:
     # horizonte + backtest por ventana de fechas + banda). La receta se elige
@@ -313,6 +385,8 @@ def _process_m3(config: dict, dates: list[_dt.date]) -> tuple[ModelSummaryM3, di
                 "techo": params.loc[code, "techo"],
                 "usa_pronostico": bool(params.loc[code, "usa_pronostico"]),
             }
+            if with_min:
+                pair["monto_min_recoleccion"] = min_by_branch.get(str(code))
         sim = simulate_balance_m3(
             horizon_df,
             branch_max_capacity=float(capacities.get(code, float("nan"))),
@@ -345,6 +419,8 @@ def _process_m3(config: dict, dates: list[_dt.date]) -> tuple[ModelSummaryM3, di
     alerts_df = _alerts_block(balance_df)
     recommendations_df = _recommendations_block(balance_df, pol)
     metrics_df, n_obs = _metrics_block(backtests_by_target)
+    if with_min:
+        metrics_df = pd.concat([metrics_df, pd.DataFrame([_omitted_metric_row(balance_df)])], ignore_index=True)
 
     summary.n_predictions = int(len(pred_df))
     summary.n_alerts = int(len(alerts_df))
@@ -450,6 +526,8 @@ def _recommendations_block(balance_df: pd.DataFrame, pol: dict | None = None) ->
     key = rec["cod_cajero"].astype(str)
     rec["transportadora"] = key.map(offices["transportadora"])
     rec["ubicacion"] = key.map(offices["ubicacion"])
+    if alx.interruptor("m3_escala_anexo_a") and "escalas" in offices.columns:
+        rec["escalas"] = key.map(offices["escalas"])  # SUP-22: escala desde `Escalas` de Oficinas
     rec["concepto"] = anexo_e.branch_concepts(rec)
     costed = anexo_e.compute_costs(rec)
 
@@ -501,7 +579,51 @@ def _recommendations_block(balance_df: pd.DataFrame, pol: dict | None = None) ->
     costed["costo_fijo"] = c0.to_numpy()
     costed["tarifa_10k"] = (c1 - c0).to_numpy()
     costed["explicacion"] = [explain_action(row, pol) for row in costed.to_dict("records")]
+    if alx.interruptor("monto_minimo_recoleccion"):
+        costed["explicacion"] = _min_collection_texts(costed, extras, pol)
     return costed[columns]
+
+
+def _min_collection_texts(costed: pd.DataFrame, balance: pd.DataFrame, pol: dict) -> list[str]:
+    """Frases de SUP-43 en las explicaciones de M3 (interruptor `monto_minimo_recoleccion`).
+
+    - Recoleccion que incluye efectivo de recolecciones omitidas desde la anterior: monto y fechas omitidas.
+    - Recoleccion de exceso sobre el cupo cuyo monto no supera `factor x costo`: se mantiene por RN-38.
+    """
+    cfg = pol.get("monto_minimo_recoleccion") or {}
+    texts = cfg.get("textos") or {}
+    factor = min_collection_factor(pol)
+    has_omitted = "recoleccion_omitida" in balance.columns
+    omitted = balance[["cod_cajero", "fecha", "recoleccion_omitida"]] if has_omitted else None
+    out: list[str] = []
+    last_collection: dict[str, pd.Timestamp] = {}
+    order = costed.assign(_f=pd.to_datetime(costed["fecha_sugerida"])).sort_values("_f", kind="stable")
+    extra: dict[int, str] = {}
+    for idx, row in order.iterrows():
+        if row["accion"] != "recoleccion":
+            continue
+        code, date = str(row["cod_cajero"]), row["_f"]
+        parts = []
+        if omitted is not None:
+            prev = last_collection.get(code)
+            win = omitted[(omitted["cod_cajero"].astype(str) == code) & (omitted["fecha"] < date)]
+            if prev is not None:
+                win = win[win["fecha"] > prev]
+            win = win[win["recoleccion_omitida"] > 0]
+            if not win.empty:
+                dates_txt = ", ".join(pd.Timestamp(f).strftime("%d-%m-%Y") for f in win["fecha"])
+                amount = "$" + f"{float(win['recoleccion_omitida'].sum()):,.0f}".replace(",", ".")
+                parts.append(str(texts.get("omitidas_previas", "")).format(monto=amount, fechas=dates_txt))
+        last_collection[code] = date
+        cost = row.get("costo")
+        if row.get("regla") == "exceso_sobre_cupo" and pd.notna(cost) and float(row["monto"]) <= factor * float(cost):
+            parts.append(str(texts.get("exceso_antieconomica", "")))
+        parts = [p for p in parts if p]
+        if parts:
+            extra[idx] = " " + " ".join(parts)
+    for idx, text in zip(costed.index, costed["explicacion"], strict=False):
+        out.append(f"{text}{extra.get(idx, '')}")
+    return out
 
 
 def _upsert_publish(

@@ -3,15 +3,24 @@
 from __future__ import annotations
 
 import datetime as _dt
+import logging
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
+from daas import alx
+from daas.costs.anexo_e import mf_es_interurbano
 from daas.publish.anexo_d import masters
 from daas.publish.anexo_d.cell_values import mark_formula, to_date_or_none, to_integer
 from daas.publish.anexo_d.config import resolve_config
 from daas.publish.anexo_d.constants import HEADERS, PROVIDER_ID
 from daas.publish.anexo_d.masters import cap_m1, capacity_m3, capitalize_city, city_map_m3
+
+logger = logging.getLogger(__name__)
+
+#: Niveles admitidos por la plantilla (diccionario 06).
+_LEVELS = ("alto", "medio", "bajo")
 
 #: Mapa accion del contrato (M1-M3) -> regla aplicada (Anexo B). provision via
 #: RN-11 (simulacion/provision hasta cupo); recoleccion via la regla de
@@ -123,6 +132,25 @@ def sheet_02_operational_plan(
     level_alert = _risk_level_map(alerts, ("m1", "m2", "m3"))
     zero = cfg["costo_cero_sucursal"]
 
+    # Correcciones v2 (cada una detras de su interruptor de conf/alx.yml; apagadas = comportamiento previo).
+    with_level = alx.interruptor("nivel_riesgo_previo")
+    with_interurban = alx.interruptor("m2_tarifa_interurbana")
+    with_min_collection = alx.interruptor("monto_minimo_recoleccion")
+    texts_v2 = cfg.get("textos_v2") or {}
+    attrs = masters.atm_attributes_m1_m2(cutoff) if (with_interurban or with_min_collection) else None
+    map_attrs = attrs.set_index("cod_cajero").to_dict("index") if attrs is not None else {}
+    factor_collection = None
+    if with_min_collection:
+        from daas.modules.branches_m3.config import load_config as load_m3
+        from daas.modules.branches_m3.policy import load_policy, min_collection_factor
+
+        factor_collection = min_collection_factor(load_policy(load_m3()))
+    flows_day: dict[tuple[str, str, str], tuple[float, float]] = {}
+    insufficient: dict[tuple[str, str], list[tuple[str, float, float]]] = {}
+    fallback_level = 0
+    if with_level:
+        flows_day = _daily_flows(contracts["predicciones"])
+
     def _context(mdl: str, code: str) -> tuple[str | None, str | None, Any]:
         if mdl in ("m1", "m2"):
             capacity_m = map_cp_capacity.get(code)
@@ -134,6 +162,14 @@ def sheet_02_operational_plan(
                 capacity_m,
             )
         return capitalize_city(map_m3_city.get(code)), na, map_m3_capacity.get(code)
+
+    if with_level:
+        entity_keys = {(m, c) for m, c, _ in flows_day}
+        capacities = {}
+        for m, c in entity_keys:
+            value = _context(m, c)[2]
+            capacities[(m, c)] = None if value is None or pd.isna(value) else float(value)
+        insufficient = entidades_cupo_insuficiente(flows_day, capacities)
 
     rows = []
     for _, row in rec.iterrows():
@@ -159,6 +195,44 @@ def sheet_02_operational_plan(
                 explanation = f"{explanation or ''} {zero['texto']}".strip()
             else:
                 explanation = f"{explanation or ''} {zero['texto_tdv_sin_tarifa']}".strip()
+        extra: list[str] = []
+        info = map_attrs.get(code, {}) if mdl == "m2" else {}
+        is_tdv_mf = kind_admin == "TDV" and str(info.get("tipo_facturacion", "")).strip().upper() == "MF"
+        if with_interurban and is_tdv_mf and mf_es_interurbano(info.get("municipio"), info.get("ciudad")):
+            extra.append(
+                texts_v2["mf_interurbano"].format(
+                    municipio=capitalize_city(info.get("municipio")), ciudad=capitalize_city(info.get("ciudad"))
+                )
+            )
+        if (
+            with_min_collection
+            and mdl == "m2"
+            and str(action) == "recoleccion"
+            and kind_admin == "TDV"
+            and pd.notna(row.get("costo"))
+            and float(row.get("monto")) <= factor_collection * float(row.get("costo"))
+        ):
+            extra.append(texts_v2["m2_antieconomica"])
+        if with_level:
+            previous = nivel_riesgo_previo(
+                {**row.to_dict(), "modelo": mdl},
+                flows_day.get((mdl, code, str(pd.Timestamp(row.get("fecha_sugerida")).date()))),
+                None if capacity is None else float(capacity),
+                cfg["nivel_riesgo_previo"],
+            )
+            if previous is None:
+                fallback_level += 1
+                level = _alerts_level(level_alert.get((mdl, code)), cfg)
+            else:
+                level = previous[0]
+                extra.append(texts_v2["motivo_riesgo"][previous[1]])
+            if (mdl, code) in insufficient:
+                level = "alto"
+                extra.append(_insufficient_text(insufficient[(mdl, code)], mdl, kind_admin, cfg))
+            if level not in _LEVELS:
+                raise ValueError(f"nivel_riesgo fuera de {_LEVELS}: {level!r} ({mdl} {code})")
+        if extra:
+            explanation = f"{explanation or ''} {' '.join(extra)}".strip()
         rows.append(
             {
                 "id_proveedor": PROVIDER_ID,
@@ -200,6 +274,16 @@ def sheet_02_operational_plan(
         capacity = to_integer(capacity_master)
         worst = level_alert.get((str(mdl), code))
         severity = {v: k for k, v in cfg["nivel_riesgo"]["respaldo_alertas"].items()}.get(worst)
+        explanation_sa = (
+            sa["explicacion_con_alerta"].format(severidad=severity) if worst else sa["explicacion_sin_alerta"]
+        )
+        level_sa = worst or cfg["nivel_riesgo"]["por_defecto"]
+        if with_level and (str(mdl), code) in insufficient:  # SUP-44: el cupo insuficiente prevalece
+            level_sa = "alto"
+            explanation_sa = (
+                f"{explanation_sa} "
+                f"{_insufficient_text(insufficient[(str(mdl), code)], str(mdl), kind_admin, cfg)}"
+            )
         rows.append(
             {
                 "id_proveedor": PROVIDER_ID,
@@ -210,11 +294,9 @@ def sheet_02_operational_plan(
                 "fecha_accion_sugerida": start,
                 "accion_sugerida": "sin_accion",
                 "monto_sugerido_cop": 0,
-                "nivel_riesgo": worst or cfg["nivel_riesgo"]["por_defecto"],
+                "nivel_riesgo": level_sa,
                 "regla_aplicada": sa["regla"],
-                "explicacion_funcional": (
-                    sa["explicacion_con_alerta"].format(severidad=severity) if worst else sa["explicacion_sin_alerta"]
-                ),
+                "explicacion_funcional": explanation_sa,
                 "cupo_entidad_cop": capacity,
                 "saldo_antes_accion_cop": na,
                 "porcentaje_ocupacion_antes": mark_formula("02_Plan_Operativo", "porcentaje_ocupacion_antes"),
@@ -222,8 +304,114 @@ def sheet_02_operational_plan(
                 "costo_estimado_cop": na,
             }
         )
+    if fallback_level:
+        logger.warning("nivel_riesgo_previo: %d acciones sin pronostico o cupo; nivel por alertas.", fallback_level)
     out = pd.DataFrame(rows, columns=HEADERS["02_Plan_Operativo"])
     return out.sort_values(["modelo", "id_entidad", "fecha_accion_sugerida"]).reset_index(drop=True)
+
+
+def _cop(value: float) -> str:
+    """Pesos enteros con separador de miles colombiano."""
+    return f"{float(value):,.0f}".replace(",", ".")
+
+
+def nivel_riesgo_previo(
+    row: dict[str, Any], flows: tuple[float, float] | None, capacity: float | None, cfg: dict[str, Any]
+) -> tuple[str, str] | None:
+    """Nivel de riesgo ANTES de la accion (SUP-42; interruptor `nivel_riesgo_previo`).
+
+    Provision: `sin = saldo_antes + entradas - salidas` del dia (sin la provision). M1/M2: `sin <= 0` -> alto
+    (agotamiento; RN-12, RN-21, RN-38); `0 < sin < umbral x cupo` -> medio (RN-34; el borde exacto del 8 % queda
+    fuera, igual que las alertas); resto -> bajo (provision preventiva). M3: `sin <= 0` -> alto; resto -> medio
+    (toda provision de M3 nace de un saldo previsto bajo la reserva preventiva; RN-40, RN-44); nunca bajo.
+    Recoleccion M2: medio (saldo al cierre sobre el cupo, RN-35). Recoleccion M3: alto si el saldo al cierre supera
+    el cupo (regla `exceso_sobre_cupo`, RN-38); si no, bajo (efectivo ocioso, RN-40).
+
+    Args:
+        row: Accion con `modelo`, `accion`, `saldo_antes` y `regla` (M3).
+        flows: `(entradas, salidas)` del dia redondeadas al peso, o None si no hay pronostico del dia.
+        capacity: Cupo aplicable.
+        cfg: Bloque `nivel_riesgo_previo` de la configuracion (`umbral`).
+
+    Returns:
+        tuple[str, str] | None: `(nivel, motivo)`, o None si faltan datos (el llamador usa el respaldo).
+    """
+    mdl, action = str(row.get("modelo")), str(row.get("accion"))
+    threshold = float(cfg.get("umbral", 0.08))
+    if action == "recoleccion":
+        if mdl == "m2":
+            return "medio", "sobre_cupo"
+        if mdl == "m3":
+            return ("alto", "exceso_cupo") if str(row.get("regla")) == "exceso_sobre_cupo" else ("bajo", "ocioso")
+        return None
+    if action != "provision" or flows is None or capacity is None or not capacity > 0:
+        return None
+    before = row.get("saldo_antes")
+    if before is None or pd.isna(before):
+        return None
+    without = float(before) + float(flows[0]) - float(flows[1])
+    if without <= 0:
+        return "alto", "agotamiento"
+    if without < threshold * float(capacity):
+        return "medio", "bajo_umbral"
+    if mdl == "m3":
+        return "medio", "bajo_reserva"
+    return "bajo", "preventiva"
+
+
+def _daily_flows(pred: pd.DataFrame) -> dict[tuple[str, str, str], tuple[float, float]]:
+    """`(modelo, entidad, fecha ISO) -> (entradas, salidas)` del pronostico, redondeadas al peso como la simulacion."""
+    sub = pred[pred["modelo"].isin(("m1", "m2", "m3"))].copy()
+    sub["cod_cajero"] = sub["cod_cajero"].astype(str)
+    sub["fecha"] = pd.to_datetime(sub["fecha"]).dt.date.astype(str)
+    sub["yhat"] = np.round(pd.to_numeric(sub["yhat"], errors="coerce").fillna(0.0))
+    wide = sub.pivot_table(index=["modelo", "cod_cajero", "fecha"], columns="objetivo", values="yhat", aggfunc="sum")
+    out: dict[tuple[str, str, str], tuple[float, float]] = {}
+    for (mdl, code, date), values in wide.iterrows():
+        if mdl == "m1":
+            flows = (0.0, float(values.get("pagado", 0.0) or 0.0))
+        elif mdl == "m2":
+            flows = (float(values.get("cash_in", 0.0) or 0.0), float(values.get("pagado", 0.0) or 0.0))
+        else:
+            flows = (float(values.get("entradas", 0.0) or 0.0), float(values.get("salidas", 0.0) or 0.0))
+        out[(str(mdl), str(code), str(date))] = tuple(0.0 if pd.isna(v) else v for v in flows)
+    return out
+
+
+def entidades_cupo_insuficiente(
+    flows: dict[tuple[str, str, str], tuple[float, float]], capacities: dict[tuple[str, str], float | None]
+) -> dict[tuple[str, str], list[tuple[str, float, float]]]:
+    """Entidades cuyo flujo neto de salida pronosticado supera su cupo en algun dia (SUP-44; RN-18, RN-21).
+
+    Neto = salidas - entradas del dia (M1 pagado; M2 pagado - cash_in; M3 salidas - entradas) frente al cupo
+    aplicable (M1 operativo de RN-09; M2 cupo; M3 `cupo_max_suc`).
+
+    Returns:
+        dict: `(modelo, entidad) -> [(fecha ISO, neto, cupo), ...]` solo con los dias en que neto > cupo.
+    """
+    out: dict[tuple[str, str], list[tuple[str, float, float]]] = {}
+    for (mdl, code, date), (inflow, outflow) in sorted(flows.items()):
+        capacity = capacities.get((mdl, code))
+        if capacity is None or pd.isna(capacity) or not float(capacity) > 0:
+            continue
+        net = float(outflow) - float(inflow)
+        if net > float(capacity):
+            out.setdefault((mdl, code), []).append((date, net, float(capacity)))
+    return out
+
+
+def _insufficient_text(days: list[tuple[str, float, float]], mdl: str, kind_admin: str | None, cfg: dict) -> str:
+    """Frase de cupo insuficiente (SUP-44) con los dias, el neto maximo, el cupo y la demanda no atendida minima."""
+    texts = cfg["textos_v2"]["cupo_insuficiente"]
+    template = texts["m2_sucursal"] if mdl == "m2" and kind_admin == "Sucursal" else texts["general"]
+    dates = ", ".join(pd.Timestamp(d).strftime("%d-%m-%Y") for d, _, _ in days)
+    return template.format(
+        n=len(days),
+        fechas=dates,
+        max_neto=_cop(max(n for _, n, _ in days)),
+        cupo=_cop(days[0][2]),
+        exceso=_cop(sum(n - c for _, n, c in days)),
+    )
 
 
 def _alerts_level(worst: str | None, cfg: dict[str, Any]) -> str:

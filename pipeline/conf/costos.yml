@@ -22,9 +22,13 @@ cajero:
   INDIVIDUAL: ATM URBANO {dia} INDIVIDUAL
   INTERURBANO COMBO: ATM INTERURBANO {dia} COMBO
   MF: MF URBANO {dia}
+  # RN-04A (M2): MF de TDV con municipio distinto de la ciudad del fondo. Solo lo asigna el interruptor
+  # `m2_tarifa_interurbana` de conf/alx.yml (SUP-21); apagado, ninguna fila tiene esta tipologia.
+  MF INTERURBANO: MF INTERURBANO {dia}
 
 # Sucursales (M3): `ubicacion` del maestro oficinas -> concepto. La primera regex que coincide gana;
-# {1} es el primer grupo. La escala sale de `ubicacion`, no de `escalas`; sin prefijo es urbana (SUP-22).
+# {1} es el primer grupo. Sin prefijo es urbana. La escala sale de `ubicacion` (v1); con el interruptor
+# `m3_escala_anexo_a` de conf/alx.yml sale del campo `Escalas` de Oficinas (SUP-22).
 # El servicio (tabla de provision o de recoleccion) es la accion.
 sucursal:
   - patron: '^URBANO (ELITE|VIP|ALTO|MEDIO|BAJO|INDIVIDUAL)$'

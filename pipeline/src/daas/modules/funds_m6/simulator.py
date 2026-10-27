@@ -26,9 +26,17 @@ primero) y luego excedentes. Todo parametro vive en `conf/model_u6.yml`
 confia en ningun texto externo (LLM01): solo lee numeros de los contratos y maestros.
 
 Supuestos de modelado (limitaciones declaradas):
-el traslado se aplica el mismo dia (el lag T+1 oficial no se modela); la capacidad de un
-fondo origen es su saldo sobre el minimo de esa denominacion; el cambio de
-denominacion toma solo del exceso sobre el maximo de otra denominacion del mismo fondo.
+sin `decision.traslado_disponible_t1` (entregable v1) el traslado se aplica el mismo dia y
+puede cubrir un faltante de ese dia. Con `traslado_disponible_t1` (interruptor `m6_traslado_t1`,
+SUP-52; nota del Anexo E, Fondos: "El efectivo sale del fondo origen en la fecha de ejecucion
+y se encuentra disponible en el fondo destino al dia siguiente") un traslado ejecutado el dia T
+solo cubre el faltante proyectado para T+1: al cierre de T se proyecta el saldo de T+1 con los
+flujos de M1-M5 y, si queda bajo el minimo, se ordena el traslado con fecha T (las dos filas con
+la misma fecha, RN-74); el destino lo recibe al cierre de T, que es su saldo inicial de T+1
+(RN-71). Un faltante del mismo dia ya no se cubre con traslado. La capacidad de un fondo origen
+es su saldo sobre el minimo de esa denominacion (con T+1, tambien despues de sus flujos del dia
+siguiente); el cambio de denominacion toma solo del exceso sobre el maximo de otra denominacion
+del mismo fondo. La tarifa de un traslado es la de la transportadora del fondo origen (SUP-53).
 """
 
 from __future__ import annotations
@@ -140,6 +148,10 @@ class _Simulator:
         self.sin_habil = set(dec.get("dias_no_habiles_sin", []))
         self.conservar_ok = bool(dec.get("conservar_excedente", True))
         self.riesgo = dec.get("riesgo_residual", {})
+        # SUP-52 (`m6_traslado_t1`): disponible en el destino al dia siguiente (nota del Anexo E, Fondos).
+        self.t1 = bool(dec.get("traslado_disponible_t1", False))
+        # SUP-53 (`m6_tarifa_traslado_declarada`): la explicacion declara la tarifa usada y la alternativa.
+        self.tariff_text = bool(dec.get("tarifa_traslado_declarada", False))
         self.tasa_por_monto = float(dec.get("venta", {}).get("tasa_por_monto", 10000))
         storage = config.get("costos", {}).get("almacenamiento", {})
         self.alm_ok = bool(storage.get("habilitado", True))
@@ -155,6 +167,12 @@ class _Simulator:
             (str(f), str(o)): bool(h)
             for f, o, h in zip(matrix_ops["fondo_id"], matrix_ops["operacion"], matrix_ops["habilitada"], strict=False)
         }
+        # Motivo explicito de una operacion deshabilitada (columna opcional `motivo`; p.ej. RN-84, SUP-14).
+        self.ops_motivo: dict[tuple[str, str], str] = {}
+        if "motivo" in matrix_ops.columns:
+            for f, o, m in zip(matrix_ops["fondo_id"], matrix_ops["operacion"], matrix_ops["motivo"], strict=False):
+                if isinstance(m, str) and m.strip():
+                    self.ops_motivo[(str(f), str(o))] = m.strip()
         self.current_balance: dict[tuple[str, int], float] = {
             (str(f), int(d)): float(s)
             for f, d, s in zip(
@@ -226,6 +244,8 @@ class _Simulator:
             return False, "dia no habil (sabado, domingo o festivo; RN-71A)"
         key = {"banrep_consignacion": "banrep", "banrep_retiro": "banrep"}.get(operation, operation)
         if not self.ops.get((fund, key), False):
+            if (fund, key) in self.ops_motivo:
+                return False, self.ops_motivo[(fund, key)]
             return False, "no habilitada en este fondo (sin historico o fuera de las ciudades BanRep)"
         return True, ""
 
@@ -302,19 +322,33 @@ class _Simulator:
         return denom if self.cfg.get("decision", {}).get("redondeo", "denominacion") == "denominacion" else 1
 
     def _shortfall_candidates(
-        self, fund: str, denom: int, date: _dt.date, missing: float
+        self, fund: str, denom: int, date: _dt.date, missing: float, transfer: str = "mismo_dia"
     ) -> tuple[list[dict[str, Any]], list[str]]:
-        """Alternativas para cubrir un faltante; devuelve (candidatos, descartadas)."""
+        """Alternativas para cubrir un faltante; devuelve (candidatos, descartadas).
+
+        `transfer`: ``mismo_dia`` (v1: el traslado cubre el faltante del dia), ``no`` (SUP-52: un faltante de hoy
+        no se cubre con un traslado de hoy) o ``anticipado`` (SUP-52: faltante proyectado para `date`, que se
+        cubre con un traslado ejecutado el dia anterior; la capacidad del origen descuenta sus flujos de `date`).
+        """
         u = self._roundings(denom)
         target = _ceiling(missing, u)
         candidates: list[dict[str, Any]] = []
         discarded: list[str] = []
         # (1) traslado entrante desde otro fondo con capacidad sobre su minimo.
         origins = []
-        for (g, d2), s in sorted(self.current_balance.items()):
+        items = sorted(self.current_balance.items()) if transfer != "no" else []
+        if transfer == "no":
+            discarded.append(
+                "traslado: el efectivo trasladado esta disponible en el fondo destino al dia siguiente (Anexo E, "
+                "Fondos); un faltante de hoy no se cubre con un traslado de hoy (SUP-52)"
+            )
+        for (g, d2), s in items:
             if d2 != denom or g == fund:
                 continue
             cap = s - self.min_value[(g, d2)]
+            if transfer == "anticipado":
+                inflow_g, outflow_g = self.effect.get((g, date, d2), (0.0, 0.0))
+                cap = min(cap, s + inflow_g - outflow_g - self.min_value[(g, d2)])
             amount = _floor(min(target, cap), u)
             if amount <= 0:
                 continue
@@ -346,7 +380,7 @@ class _Simulator:
                 f"traslado desde {without_path} fondo(s) con saldo disponible: "
                 "ruta sin tarifa en el Anexo E (prohibida)"
             )
-        if not origins:
+        if not origins and transfer != "no":
             discarded.append("traslado: ningun otro fondo tiene saldo sobre su minimo en esta denominacion")
         # (2) retiro BanRep.
         ok, ratio = self._is_allowed(fund, "banrep_retiro", date)
@@ -583,7 +617,9 @@ class _Simulator:
             need = mn - s
             if need <= 1e-9:
                 return
-            candidates, discarded = self._shortfall_candidates(fund, denom, date, need)
+            candidates, discarded = self._shortfall_candidates(
+                fund, denom, date, need, transfer="no" if self.t1 else "mismo_dia"
+            )
             text_need = (
                 f"Faltante de {_cop(need)} en la denominacion {denom}: saldo {_cop(s)} " f"bajo el minimo {_cop(mn)}."
             )
@@ -625,6 +661,102 @@ class _Simulator:
             + (" Otras alternativas: " + "; ".join(other_txt) + "." if other_txt else "")
         )
         self._apply(date, fund, denom, kind, need, chosen, reason, criterion, nid)
+
+    def _anticipate(self, date: _dt.date, next_date: _dt.date, keys: list[tuple[str, int]]) -> None:
+        """SUP-52: ordena hoy (`date`) los traslados que cubren el faltante proyectado para `next_date`.
+
+        El saldo proyectado de `next_date` es el cierre actual mas sus ingresos menos sus salidas de M1-M5. Si queda
+        bajo el minimo, se evalua el traslado (ejecutado hoy, disponible manana) frente a las alternativas de
+        `next_date` (retiro BanRep si el dia es habil y el fondo lo tiene habilitado). Solo si el traslado es la
+        alternativa elegida se registra hoy; si no, la necesidad se resuelve manana con las alternativas de ese dia.
+        Orden de atencion: mayor faltante primero (RN-81).
+        """
+        projected = []
+        for key in keys:
+            fund, denom = key
+            inflow, outflow = self.effect.get((fund, next_date, denom), (0.0, 0.0))
+            proj = self.current_balance[key] + inflow - outflow
+            if proj < self.min_value[key]:
+                projected.append((self.min_value[key] - proj, key, proj, inflow, outflow))
+        for need, (fund, denom), proj, inflow, outflow in sorted(projected, key=lambda t: (-t[0], t[1])):
+            key = (fund, denom)
+            # El estado pudo cambiar por un traslado anterior de esta misma pasada (origen = este fondo).
+            inflow, outflow = self.effect.get((fund, next_date, denom), (0.0, 0.0))
+            proj = self.current_balance[key] + inflow - outflow
+            need = self.min_value[key] - proj
+            if need <= 1e-9:
+                continue
+            candidates, discarded = self._shortfall_candidates(fund, denom, next_date, need, transfer="anticipado")
+            chosen = self._choose(candidates)
+            if chosen is None or chosen["operacion"] != "traslado":
+                continue  # se resuelve el dia de la necesidad con sus alternativas
+            nid = len(self.needs)
+            self.needs.append(
+                {
+                    "necesidad_id": nid,
+                    "fondo_id": fund,
+                    "denominacion": denom,
+                    "fecha": next_date,
+                    "tipo": "faltante",
+                    "monto_necesidad": need,
+                    "operacion": None,
+                    "resultado": None,
+                    "monto_accion": 0.0,
+                }
+            )
+            mn = self.min_value[key]
+            text_need = (
+                f"Faltante proyectado para el {next_date:%d/%m/%Y} de {_cop(need)} en la denominacion {denom}: saldo "
+                f"proyectado {_cop(proj)} (cierre del {date:%d/%m/%Y} {_cop(self.current_balance[key])} mas ingresos "
+                f"{_cop(inflow)} menos salidas {_cop(outflow)}) bajo el minimo {_cop(mn)}. El traslado se ejecuta el "
+                f"{date:%d/%m/%Y} porque el efectivo sale del fondo origen en la fecha de ejecucion y esta disponible "
+                "en el fondo destino al dia siguiente (Anexo E, Fondos; SUP-52)."
+            )
+            other = [c for c in candidates if c is not chosen]
+            other_txt = [self._desc(c) for c in sorted(other, key=self._net)] + discarded
+            criterion = (
+                "Menor costo neto entre las alternativas que cubren la necesidad completa"
+                if chosen["completo"]
+                else "Ninguna alternativa cubre la necesidad completa: mayor cobertura y luego menor costo"
+            )
+            reason = (
+                f"{text_need} Elegida: {self._desc(chosen)}. "
+                + (
+                    "Es preferible porque tiene el menor costo neto."
+                    if chosen["completo"]
+                    else "Cubre solo una parte; el resto se evalua el dia de la necesidad."
+                )
+                + (" Otras alternativas: " + "; ".join(other_txt) + "." if other_txt else "")
+            )
+            self._apply(date, fund, denom, "faltante", need, chosen, reason, criterion, nid)
+
+    def _tariff_sentence(self, origin: str, destination: str, amount: float, cost: float | None) -> str:
+        """SUP-53: frase de la tarifa del traslado con costo (la del origen) y su alternativa (la del destino)."""
+        if not self.tariff_text or cost is None or cost <= 0:
+            return ""
+        tdv_o, tdv_d = self.tdv[origin], self.tdv[destination]
+        if tdv_o == tdv_d:
+            return f" Tarifa del Anexo E de {tdv_o}, transportadora de los dos fondos (SUP-53)."
+        ((alt, _rule),) = self._compute_cost(
+            [
+                {
+                    "operacion": "traslado",
+                    "monto": amount,
+                    "transportadora": tdv_d,
+                    "ciudad_origen": self.city[origin],
+                    "ciudad_destino": self.city[destination],
+                }
+            ]
+        )
+        alt_txt = (
+            f"con la de {tdv_d}, transportadora del fondo destino, costaria {_cop(alt)}"
+            if alt is not None
+            else f"{tdv_d}, transportadora del fondo destino, no tiene tarifa para esta ruta"
+        )
+        return (
+            f" Tarifa del Anexo E de {tdv_o}, transportadora del fondo origen, que entrega el efectivo y en cuya fila "
+            f"se registra el costo (RN-74; SUP-53); {alt_txt}."
+        )
 
     def _no_action(
         self,
@@ -754,6 +886,7 @@ class _Simulator:
                 origin = fund
             idp = self._new_pair()
             counterpart = destination if origin == fund else origin
+            reason = reason + self._tariff_sentence(origin, destination, amount, c["costo"])
             reason_cp = self._counterpart_reason(
                 "traslado", idp, counterpart, denom, fund, denom, amount, origin == counterpart, reason
             )
@@ -899,6 +1032,9 @@ class _Simulator:
                         }
                     )
                     self._resolve(date, fund, denom, kind, days_remaining, nid)
+            # 2b) SUP-52: traslados de hoy para el faltante proyectado de manana (disponible al dia siguiente).
+            if self.t1 and i + 1 < n_days:
+                self._anticipate(date, self.dates[i + 1], keys)
             # 3) cierre del dia = saldo inicial del siguiente.
             for key in keys:
                 fund, denom = key

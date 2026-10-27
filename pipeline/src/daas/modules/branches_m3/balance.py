@@ -131,6 +131,10 @@ def simulate_balance_m3(
     target = float(pol.get("objetivo", cap))
     ceiling = float(pol.get("techo", cap))
     uses_forecast = bool(pol.get("usa_pronostico", False))
+    # SUP-43 (interruptor `monto_minimo_recoleccion`): monto por debajo del cual una recoleccion de efectivo ocioso
+    # no paga su visita. None = sin minimo (comportamiento previo).
+    min_amount = pol.get("monto_min_recoleccion")
+    min_amount = None if min_amount is None or pd.isna(min_amount) else float(min_amount)
 
     series = series_branch.sort_values(date_col).reset_index(drop=True)
     # Flujos en pesos enteros (RN-01): saldos y montos quedan enteros.
@@ -147,6 +151,7 @@ def simulate_balance_m3(
     balances_expected: list[float] = []
     rules_provision: list[str | None] = []
     rules_rec: list[str | None] = []
+    omitted: list[float] = []
     balance_previous = balance_initial
     for inflows_t, outflows_t in zip(inflows.tolist(), outflows.tolist(), strict=False):
         balances_initial_day.append(balance_previous)
@@ -168,6 +173,13 @@ def simulate_balance_m3(
         # 4) RECOLECCION ENDOGENA al cierre: se retira el exceso sobre el cap.
         balances_before_collection.append(max(balance_flow, 0.0))
         collection_t = float(np.ceil(max(balance_flow - ceiling, 0.0)))  # entero; deja el saldo <= techo <= cap
+        # SUP-43: una recoleccion de efectivo ocioso (saldo <= cupo) cuyo monto no supera el costo de la visita no se
+        # recomienda; la de exceso sobre el cupo (RN-38) siempre se mantiene. El efectivo queda en la boveda y se
+        # encadena (RN-39).
+        omitted_t = 0.0
+        if min_amount is not None and 0.0 < collection_t <= min_amount and balance_flow <= cap:
+            omitted_t, collection_t = collection_t, 0.0
+        omitted.append(omitted_t)
         rules_rec.append(None if collection_t <= 0.0 else (_CAPACITY_EXCESS_RULE if balance_flow > cap else _IDLE_RULE))
         balance_post = balance_flow - collection_t
         collections.append(collection_t)
@@ -201,4 +213,7 @@ def simulate_balance_m3(
     out["umbral_valor"] = threshold_value
     out["riesgo_agotamiento"] = risks_depletion
     out["riesgo_excedente"] = risks_surplus
+    if min_amount is not None:
+        out["recoleccion_omitida"] = omitted
+        out["monto_min_recoleccion"] = min_amount
     return out

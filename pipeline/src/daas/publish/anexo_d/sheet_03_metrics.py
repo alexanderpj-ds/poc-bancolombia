@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+import re
 from typing import Any
 
 import pandas as pd
@@ -431,7 +432,40 @@ def sheet_03_metrics(
             )
         )
 
-    return pd.DataFrame(rows, columns=HEADERS["03_Metricas_Desarrollo"])
+    out = pd.DataFrame(rows, columns=HEADERS["03_Metricas_Desarrollo"])
+    if alx.interruptor("hoja03_textos_v2"):
+        out = texts_v2(out, cfg)
+    return out
+
+
+def texts_v2(df: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
+    """Hoja 03 v2 (interruptor `hoja03_textos_v2`): comentarios y metodologia limpios; ningun valor cambia.
+
+    Aplica los reemplazos y las tildes de ``hoja_03_v2`` a `comentarios` y `metodologia_validacion` y quita las
+    oraciones repetidas de cada celda.
+    """
+    h3 = cfg["hoja_03_v2"]
+    out = df.copy()
+    out["metodologia_validacion"] = out["metodologia_validacion"].map(lambda t: h3["metodologia"].get(t, t))
+    words = {str(k): str(v) for k, v in (h3.get("tildes") or {}).items()}
+    pattern = re.compile(r"\b(" + "|".join(re.escape(w) for w in sorted(words, key=len, reverse=True)) + r")\b")
+
+    def clean(text: object) -> object:
+        if not isinstance(text, str):
+            return text
+        for regex, repl in h3["reemplazos"]:
+            text = re.sub(regex, repl, text)
+        text = pattern.sub(lambda m: words[m.group(1)], text) if words else text
+        seen, parts = set(), []
+        for sentence in re.split(r"(?<=\.) ", text.strip()):
+            key = sentence.strip()
+            if key and key not in seen:
+                seen.add(key)
+                parts.append(key)
+        return " ".join(parts)
+
+    out["comentarios"] = out["comentarios"].map(clean)
+    return out
 
 
 def _is_rn08_reading(note: object, cfg: dict[str, Any]) -> bool:

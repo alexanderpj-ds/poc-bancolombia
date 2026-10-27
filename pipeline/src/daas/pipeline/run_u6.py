@@ -55,6 +55,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from daas import alx
 from daas.costs import anexo_e
 from daas.decision import alerts as alerts_mod
 from daas.features.calendar import build_calendar
@@ -376,6 +377,7 @@ def _metrics_block(
     actions: pd.DataFrame,
     detail_factor: dict[str, dict],
     storage_cost: float | None,
+    diagnostics: dict | None = None,
 ) -> pd.DataFrame:
     """Ensambla el bloque `metricas` m6 (SUP-11, WAPE no forzado).
 
@@ -402,6 +404,8 @@ def _metrics_block(
         actions: Acciones costeadas.
         detail_factor: Salida de `dataset.detalle_correccion_total`.
         storage_cost: Costo de almacenar el horizonte (None si no hay tarifa).
+        diagnostics: Diagnostico de los cajeros de sucursal (`net_effect_m1_m5_by_fund_day`); con
+            `m6_cajeros_sucursal` agrega las filas `cajeros_sucursal_mapeados` y `flujo_sin_fondo`.
 
     Returns:
         pd.DataFrame: Bloque `metricas` m6 (con `modelo`).
@@ -507,7 +511,80 @@ def _metrics_block(
                     origin=origin,
                 )
             )
+    if alx.interruptor("m6_cajeros_sucursal"):
+        rows.extend(_suc_rows(diagnostics or {}))
+        columns = [*columns, "objetivo"]
     return pd.DataFrame(rows, columns=columns)
+
+
+def _transfer_tariff_row(rec: pd.DataFrame, dim_fund: pd.DataFrame, rates: pd.DataFrame) -> dict:
+    """Fila informativa `costo_traslado_tarifa_destino` (SUP-53; interruptor `m6_tarifa_traslado_declarada`).
+
+    `valor` = costo de los traslados con costo si se tarifaran con la transportadora del fondo DESTINO (alternativa
+    de SUP-53); `n_obs` = traslados con costo. Rutas sin tarifa para el destino cuentan en `n_excluidas`. La hoja 03
+    no la lee.
+    """
+    tdv = dict(zip(dim_fund["fondo_id"].astype(str), dim_fund["transportadora"].astype(str), strict=False))
+    paid = rec[(rec["operacion"] == "traslado") & (rec["rol"] == "origen") & (pd.to_numeric(rec["costo"]) > 0)]
+    alt_rows = paid[["operacion", "monto", "ciudad_origen", "ciudad_destino"]].copy()
+    alt_rows["transportadora"] = paid["fondo_contraparte"].astype(str).map(tdv).to_numpy()
+    alt = anexo_e.compute_costs_m6(alt_rows, rates=rates) if not alt_rows.empty else alt_rows.assign(costo=[])
+    alt_cost = pd.to_numeric(alt["costo"], errors="coerce")
+    used = float(pd.to_numeric(paid["costo"]).sum())
+    return {
+        **_metric_row(
+            "costo_traslado_tarifa_destino",
+            f"Traslados con costo: {len(paid)}; costo con la tarifa de la transportadora del fondo origen (usada) "
+            f"{used:,.0f} COP; con la del fondo destino (alternativa) {float(alt_cost.sum()):,.0f} COP; sin tarifa "
+            f"para el destino: {int(alt_cost.isna().sum())} (SUP-53).",
+            n_obs=int(len(paid)),
+            n_excluded=int(alt_cost.isna().sum()),
+            value=float(alt_cost.sum()),
+        ),
+        **({"objetivo": None} if alx.interruptor("m6_cajeros_sucursal") else {}),
+    }
+
+
+def _suc_rows(diagnostics: dict) -> list[dict]:
+    """Filas informativas de los cajeros administrados por sucursal (SUP-12; interruptor `m6_cajeros_sucursal`).
+
+    Siempre `cajeros_sucursal_mapeados` (n_obs = mapeados, n_excluidas = sin fondo); y, solo si hay exclusiones, una
+    fila `flujo_sin_fondo` por (modelo, objetivo) con los COP que quedan fuera del balance. La hoja 03 no las lee.
+    """
+    excluded = diagnostics.get("sin_fondo", []) or []
+    codes_excl = sorted({e["cod_cajero"] for e in excluded if e["motivo"] != "sin_match_cp"})
+    rows = [
+        {
+            **_metric_row(
+                "cajeros_sucursal_mapeados",
+                f"Cajeros administrados por sucursal integrados al fondo de su sucursal: "
+                f"{int(diagnostics.get('suc_mapeados', 0))} de {int(diagnostics.get('suc_total', 0))}; sin fondo: "
+                f"{', '.join(codes_excl) if codes_excl else 'ninguno'} (SUP-12).",
+                n_obs=int(diagnostics.get("suc_mapeados", 0)),
+                n_excluded=int(diagnostics.get("suc_total", 0)) - int(diagnostics.get("suc_mapeados", 0)),
+            ),
+            "objetivo": None,
+        }
+    ]
+    by_target: dict[tuple[str, str], list[dict]] = {}
+    for e in excluded:
+        by_target.setdefault((e["modelo"], e["objetivo"]), []).append(e)
+    for (model, obj), items in sorted(by_target.items()):
+        codes = sorted({i["cod_cajero"] for i in items})
+        reasons = sorted({i["motivo"] for i in items})
+        rows.append(
+            {
+                **_metric_row(
+                    "flujo_sin_fondo",
+                    f"Flujo pronosticado de {model} {obj} sin fondo mapeable: cajeros {', '.join(codes)}; "
+                    f"motivo {', '.join(reasons)}; queda fuera del balance de M6 (SUP-12).",
+                    n_obs=len(codes),
+                    value=float(sum(i["cop"] for i in items)),
+                ),
+                "objetivo": f"{model}:{obj}",
+            }
+        )
+    return rows
 
 
 def _process_m6(config: dict, dates: list[_dt.date]) -> tuple[ModelSummaryM6, dict[str, pd.DataFrame], pd.DataFrame]:
@@ -543,7 +620,8 @@ def _process_m6(config: dict, dates: list[_dt.date]) -> tuple[ModelSummaryM6, di
     factors = {m: d["factor"] for m, d in detail_factor.items()}
     if factors:
         logger.info("M6: correccion del total por factor de red %s.", factors)
-    effect = dataset_mod.net_effect_m1_m5_by_fund_day(pred_m15, dates, config, factors)
+    diagnostics: dict = {}
+    effect = dataset_mod.net_effect_m1_m5_by_fund_day(pred_m15, dates, config, factors, diagnostics=diagnostics)
     effect_d = dataset_mod.distribute_effect_by_denomination(effect, mix)
     minmax = balance_mod.operational_minmax(available_cash, saldo0, cutoff, config)
     matrix = dataset_mod.enabled_operations_matrix(exchanges, sales, available_cash, config)
@@ -554,6 +632,15 @@ def _process_m6(config: dict, dates: list[_dt.date]) -> tuple[ModelSummaryM6, di
     rates = anexo_e._load_fund_rates()
     sale_rates = dataset_mod.sales_rate_by_fund(sales, cutoff, config)
 
+    # Interruptores de conf/alx.yml que gobiernan el simulador (SUP-52, SUP-53); apagados = entregable v1.
+    config = {
+        **config,
+        "decision": {
+            **config.get("decision", {}),
+            "traslado_disponible_t1": alx.interruptor("m6_traslado_t1"),
+            "tarifa_traslado_declarada": alx.interruptor("m6_tarifa_traslado_declarada"),
+        },
+    }
     sim = simulator_mod.simulate(saldo0, effect_d, minmax, dates, dim_fund, matrix, rates, sale_rates, business, config)
     bal = sim.balance
     rec_cost = _cost_actions(sim.actions)
@@ -579,7 +666,11 @@ def _process_m6(config: dict, dates: list[_dt.date]) -> tuple[ModelSummaryM6, di
     pred_df = _predictions_block(bal)
     rec_df = _recommendations_block(rec_cost)
     alerts_df = _alerts_block(alerts)
-    metrics_df = _metrics_block(saldo0, bal, sim.needs, rec_cost, detail_factor, storage_cost_total)
+    metrics_df = _metrics_block(saldo0, bal, sim.needs, rec_cost, detail_factor, storage_cost_total, diagnostics)
+    if alx.interruptor("m6_tarifa_traslado_declarada"):
+        metrics_df = pd.concat(
+            [metrics_df, pd.DataFrame([_transfer_tariff_row(rec_cost, dim_fund, rates)])], ignore_index=True
+        )
 
     summary = ModelSummaryM6(
         n_funds=int(dim_fund["fondo_id"].nunique()),

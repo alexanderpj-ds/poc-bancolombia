@@ -18,6 +18,7 @@ Una lectura del archivo, sin tocar S3 ni los contratos.
 from __future__ import annotations
 
 import datetime as _dt
+import re
 from pathlib import Path
 from typing import Any
 
@@ -182,6 +183,66 @@ def _validate_rn02(wb: Any, cfg: dict[str, Any], errors: list[str]) -> None:
         )
 
 
+#: Limite de caracteres de una celda de Excel.
+_MAX_CELL = 32767
+
+
+def _sentences(text: str) -> list[str]:
+    return [p.strip() for p in re.split(r"(?<=\.) ", text) if p.strip()]
+
+
+def _validate_texts(wb: Any, cfg: dict[str, Any], errors: list[str]) -> None:
+    """Textos para el evaluador (interruptor `hoja04_v2`; hoja 03 con `hoja03_textos_v2`).
+
+    En la hoja 04 (todas las celdas de texto) y, si aplica, en `comentarios` y `metodologia_validacion` de la hoja 03:
+    (a) terminos prohibidos de `hoja_04_v2.prohibidos`; (b) palabras de `tildes_control` sin tilde (palabra completa,
+    sin distinguir mayusculas; no cuenta lo que va entre comillas invertidas ni unido por guion bajo); (c) oraciones
+    repetidas en una celda; (d) SUP citado sin titulo en `sup_titulos` (hoja 04); (e) celda > 32.767 caracteres.
+    """
+    from daas import alx
+
+    if not alx.interruptor("hoja04_v2"):
+        return
+    h4 = cfg["hoja_04_v2"]
+    banned = [re.compile(p) for p in h4["prohibidos"]]
+    words = re.compile(r"\b(" + "|".join(re.escape(w) for w in h4["tildes_control"]) + r")\b", re.IGNORECASE)
+    prefixes = re.compile(r"\b(" + "|".join(re.escape(w) for w in h4.get("tildes_prefijos", [])) + r")", re.IGNORECASE)
+    sup = re.compile(r"SUP-(M3-\d{2}|\d{2})")
+    titles = {str(k) for k in h4["sup_titulos"]}
+    targets: list[tuple[str, list[str] | None]] = [("04_Descripcion_Solucion", None)]
+    if alx.interruptor("hoja03_textos_v2"):
+        targets.append(("03_Metricas_Desarrollo", ["comentarios", "metodologia_validacion"]))
+    for sheet, names in targets:
+        ws = wb[sheet]
+        columns = _columns(ws)
+        cols = [columns[n] for n in names] if names else list(columns.values())
+        problems: dict[str, list[str]] = {}
+        for r in _data_rows(ws):
+            for col in cols:
+                v = ws.cell(row=r, column=col).value
+                if not isinstance(v, str) or v.startswith("="):
+                    continue
+                where = f"fila {r} col {col}"
+                if len(v) > _MAX_CELL:
+                    problems.setdefault("celda de mas de 32.767 caracteres", []).append(where)
+                for p in banned:
+                    m = p.search(v)
+                    if m:
+                        problems.setdefault(f"termino prohibido {p.pattern!r}", []).append(f"{where}: {m.group(0)!r}")
+                plain = re.sub(r"`[^`]*`", "", v)
+                for m in list(words.finditer(plain)) + list(prefixes.finditer(plain)):
+                    problems.setdefault("palabra sin tilde", []).append(f"{where}: {m.group(0)!r}")
+                sentences = _sentences(v)
+                if len(sentences) != len(set(sentences)):
+                    problems.setdefault("oracion repetida", []).append(where)
+                if sheet == "04_Descripcion_Solucion":
+                    missing = sorted({c for c in sup.findall(v) if c not in titles})
+                    if missing:
+                        problems.setdefault("SUP sin titulo", []).append(f"{where}: {missing}")
+        for kind, items in problems.items():
+            errors.append(f"{sheet}: {kind}: {_cite(items, len(items))}.")
+
+
 def validate_anexo_d(file_path: str | Path, cfg: dict[str, Any]) -> list[str]:
     """Valida el `.xlsx` del Anexo D contra la plantilla y la configuracion.
 
@@ -216,4 +277,5 @@ def validate_anexo_d(file_path: str | Path, cfg: dict[str, Any]) -> list[str]:
         _validate_integer_and_required(ws, sheet, rows, cfg, errors)
     if not errors:
         _validate_rn02(wb, cfg, errors)
+    _validate_texts(wb, cfg, errors)
     return errors

@@ -8,6 +8,7 @@ from typing import Any
 
 import pandas as pd
 
+from daas import alx
 from daas.publish.anexo_d import masters
 from daas.publish.anexo_d.cell_values import mark_formula, to_date_or_none, to_integer
 from daas.publish.anexo_d.config import resolve_config
@@ -133,6 +134,11 @@ def sheet_05_m6_funds(
     def _num(v: object) -> float | None:
         return None if v is None or pd.isna(v) else float(v)
 
+    # SUP-12 determina los ingresos y salidas de todas las filas cuando M6 integra los cajeros de sucursal (RN-73).
+    sup12 = alx.interruptor("m6_cajeros_sucursal")
+    sup52 = alx.interruptor("m6_traslado_t1")
+    sup53 = alx.interruptor("m6_tarifa_traslado_declarada")
+
     rows = []
     for _, row in bal.iterrows():
         fund = row["cod_cajero"]
@@ -194,6 +200,14 @@ def sheet_05_m6_funds(
                     f"{explanation or ''} Egresos esperados {outflow:,.0f}: se atienden "
                     f"{served:,.0f} por falta de saldo (deficit {deficit:,.0f})."
                 ).strip()
+            if sup12:
+                assumption = f"{assumption}, SUP-12"
+            if action == "traslado_fondos":
+                # SUP-52: disponible en el destino al dia siguiente; SUP-53: tarifa del traslado entre ciudades.
+                if sup52:
+                    assumption = f"{assumption}, SUP-52"
+                if sup53 and city_from_fund(str(fund_origin)) != city_from_fund(str(fund_destination)):
+                    assumption = f"{assumption}, SUP-53"
             rows.append(
                 {
                     "id_proveedor": PROVIDER_ID,

@@ -383,6 +383,12 @@ def sheet_04_description(
     h4 = cfg["hoja_04"]
     rows = []
     ctx = _sheet_04_context()
+    if alx.interruptor("hoja04_v2"):  # correcciones v2: textos para el evaluador (sheet_04_v2)
+        if contracts is None:
+            raise ValueError("hoja04_v2 necesita los contratos de la corrida (cifras de la hoja 04).")
+        from daas.publish.anexo_d.sheet_04_v2 import sheet_04_v2
+
+        return sheet_04_v2(contracts, cfg, ctx, _SHEET_04_ROWS)
     wape_m5 = None
     if contracts is not None:
         met = contracts["metricas"]

@@ -31,6 +31,7 @@ del Anexo frente a las ciudades en MAYUSCULAS de `dim_fondo`.
 from __future__ import annotations
 
 import datetime as _dt
+import logging
 import os
 import re
 import unicodedata
@@ -39,8 +40,11 @@ from pathlib import Path
 import pandas as pd
 import yaml
 
+from daas import alx
 from daas.features.calendar import _co_holidays
 from daas.io import storage
+
+logger = logging.getLogger(__name__)
 
 #: URI del Anexo E (tarifas) en la capa interim.
 _URI_COSTS_ANEXO_E = "daas://interim/costos_anexo_e"
@@ -157,13 +161,62 @@ def atm_concept(kind_billing: object, date: object, rules: dict, holiday_dates: 
     return template.format(dia=_day(date, rules, holiday_dates))
 
 
-def branch_concept(location: object, rules: dict) -> str | None:
+def _fix_mojibake(text: str) -> str:
+    """Repara texto UTF-8 leido como cp1252/latin-1 (p. ej. `TULUÃ` + byte 0x81 -> `TULUÁ`); si no, lo deja igual."""
+    if "Ã" not in text and "Â" not in text:
+        return text
+    raw = bytearray()
+    for char in text:
+        try:
+            raw.extend(char.encode("cp1252"))
+        except UnicodeEncodeError:
+            if ord(char) < 256:
+                raw.append(ord(char))
+            else:
+                return text
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return text
+
+
+def _norm_place(value: object) -> str | None:
+    """Nombre de lugar comparable: mojibake reparado, sin tildes (NFKD), mayusculas y espacios colapsados."""
+    if _is_empty(value):
+        return None
+    decomposed = unicodedata.normalize("NFKD", _fix_mojibake(str(value)))
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return " ".join(plain.split()).upper() or None
+
+
+def mf_es_interurbano(municipio: object, ciudad_fondo: object) -> bool | None:
+    """RN-04A (M2, multifuncional TDV): interurbano cuando el municipio del equipo no coincide con la ciudad del fondo.
+
+    Args:
+        municipio: `municipio` del maestro CP.
+        ciudad_fondo: Ciudad del fondo (`fondo` del maestro CP, columna `ciudad`).
+
+    Returns:
+        bool | None: `True` si difieren, `False` si coinciden, `None` si falta alguno (no se inventa).
+    """
+    a, b = _norm_place(municipio), _norm_place(ciudad_fondo)
+    if a is None or b is None:
+        return None
+    return a != b
+
+
+def branch_concept(location: object, rules: dict, escalas: object = None) -> str | None:
     """Concepto del Anexo E de una sucursal (M3), segun su `ubicacion`.
+
+    Con el interruptor `m3_escala_anexo_a` (SUP-22) y una ubicacion `INTERURBANO n`, la escala sale del campo
+    `Escalas` de Oficinas (Anexo A: "Escala de transporte para sucursales interurbanas (tarifa INTERURBANA PR
+    ESCALA del Anexo E)") cuando es un entero >= 1; si no, del numero de la `Ubicacion` (con WARNING).
 
     Args:
         location: Tipologia del maestro de oficinas (p.ej. `URBANO MEDIO`,
             `INTERURBANO 3`, `AEREO 1`, `ALTO`).
         rules: `conf/costos.yml` cargado.
+        escalas: Campo `Escalas` de Oficinas (solo con `m3_escala_anexo_a`).
 
     Returns:
         str | None: El concepto, o ``None`` si la ubicacion falta o no tiene regla.
@@ -171,6 +224,22 @@ def branch_concept(location: object, rules: dict) -> str | None:
     if _is_empty(location):
         return None
     text = _key(location)
+    if alx.interruptor("m3_escala_anexo_a"):
+        inter = re.match(r"^INTERURBANO (\d+)$", text)
+        if inter:
+            scale = None
+            try:
+                number = float(escalas) if not _is_empty(escalas) else None
+            except (TypeError, ValueError):
+                number = None
+            if number is not None and number.is_integer() and number >= 1:
+                scale = int(number)
+            if scale is not None:
+                return f"SUCURSAL INTERURBANA ESCALA {scale}"
+            logger.warning(
+                "Sucursal %r sin Escalas valida (%r): la escala sale del numero de la Ubicacion (SUP-22).",
+                location, escalas,
+            )
     for rule in rules["sucursal"]:
         coincide = re.match(rule["patron"], text)
         if coincide:
@@ -195,6 +264,12 @@ def atm_concepts(df: pd.DataFrame, rules: dict | None = None) -> pd.Series:
 def branch_concepts(df: pd.DataFrame, rules: dict | None = None) -> pd.Series:
     """Concepto de cada accion de sucursal (`ubicacion`)."""
     rules = rules if rules is not None else load_rules()
+    if "escalas" in df.columns:
+        return pd.Series(
+            [branch_concept(u, rules, e) for u, e in zip(df["ubicacion"], df["escalas"], strict=False)],
+            index=df.index,
+            dtype=object,
+        )
     return pd.Series([branch_concept(u, rules) for u in df["ubicacion"]], index=df.index, dtype=object)
 
 

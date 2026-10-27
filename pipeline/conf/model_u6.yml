@@ -102,7 +102,8 @@ operaciones:
     mismo_ciudad_distinta_tdv_costo_cero: true  # nota oficial Anexo E (D-COSTO-2)
     preferir_costo_cero: true   # (1) misma ciudad distinta TDV antes que (2) menor costo
     nan_al_final: true          # pares con tarifa NaN se ordenan despues de los que tienen tarifa
-    tarifa_por: origen          # la TDV que tarifa el traslado = la del fondo ORIGEN (D-COSTO-2-bis)
+    tarifa_por: origen          # la TDV que tarifa el traslado = la del fondo ORIGEN (SUP-53; informativo: el codigo
+                                # usa siempre la del origen; la alternativa 'destino' se reporta en metricas)
     acotar_monto_a_excedente_origen: true  # monto = min(deficit_receptor, excedente_origen)
     permitir_parcial: true      # si el excedente no cubre, traslado parcial + remanente
     max_candidatos: 0           # 0 = emitir todas las contrapartes viables (U7 decide); >0 limita
@@ -111,6 +112,10 @@ operaciones:
   intercambio:                  # D-INTERCAMBIO-1 (SUP-14) - rebalanceo intra-fondo entre denominaciones
     emitir_recomendacion: true  # el cliente autorizo emitir intercambio/cambio_denominacion (SUP-14)
     cambio_denominacion_hereda: true  # cambio_denominacion hereda la habilitacion de intercambio
+  # Solo con el interruptor `m6_operaciones_rn84` de conf/alx.yml (SUP-14): intercambio y cambio_denominacion
+  # quedan deshabilitados en los 6 fondos con este motivo en la explicacion de los descartes.
+  rn84:
+    texto_descartada: "RN-84: el cambio de denominación es con BanRep y el intercambio con otras entidades; no se recomienda dentro del fondo (SUP-14)"
 
 # Motor de costos (Anexo E extendido, D-COSTO-1).
 costos:
@@ -124,7 +129,9 @@ costos:
 decision:
   max_acciones_por_necesidad: 1   # H-01/RN-80: UNA alternativa de bajo costo por (fondo, den, dia, tipo)
   redondeo: denominacion          # montos enteros (H-09), multiplos de la denominacion (mcm si hay dos)
-  traslado_mismo_dia: true        # supuesto: el traslado se aplica el mismo dia (T+1 no modelado)
+  traslado_mismo_dia: true        # informativo (v1): el traslado cubre el faltante del mismo dia. Con el interruptor
+                                  # `m6_traslado_t1` de conf/alx.yml rige la nota del Anexo E: disponible al dia
+                                  # siguiente; se ordena el dia anterior al faltante proyectado (SUP-52)
   dias_no_habiles_sin:            # RN-71A: sabado, domingo y festivos (calendario CO)
     [banrep_consignacion, banrep_retiro, venta, intercambio, cambio_denominacion]
   conservar_excedente: true       # el excedente puede quedarse si guardarlo cuesta menos (RN-79)

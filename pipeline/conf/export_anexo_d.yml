@@ -71,6 +71,41 @@ costo_cero_sucursal:
   texto: "Sin tarifa TDV (administrado por la sucursal): costo 0 declarado."
   texto_tdv_sin_tarifa: "Sin tarifa en el Anexo E para esta transportadora: costo no estimado."
 
+# Nivel de riesgo ANTES de la accion (SUP-42). Solo con el interruptor `nivel_riesgo_previo` de conf/alx.yml; si
+# esta apagado rige `nivel_riesgo` (ocupacion despues de la accion). umbral = RN-34 (= umbral_agotamiento de M1-M3).
+nivel_riesgo_previo:
+  umbral: 0.08
+
+# Frases nuevas de la hoja 02 (cada una solo con el interruptor de su comportamiento encendido).
+textos_v2:
+  # m2_tarifa_interurbana (RN-04A, SUP-21)
+  mf_interurbano: "Tarifa MF interurbano del Anexo E: el equipo está en {municipio}, fuera de la ciudad del fondo ({ciudad}) (RN-04A, SUP-21)."
+  # monto_minimo_recoleccion (SUP-43): recoleccion de M2 que no paga su visita pero es obligatoria
+  m2_antieconomica: "El monto no supera el costo de la visita; se mantiene porque RN-35 obliga a recoger lo que pasa del cupo (SUP-43)."
+  # nivel_riesgo_previo (SUP-42): motivo del nivel
+  motivo_riesgo:
+    agotamiento: "Riesgo alto antes de la provisión: sin ella el saldo del día se agotaría (RN-12, RN-21; SUP-42)."
+    bajo_umbral: "Riesgo medio antes de la provisión: sin ella el saldo del día quedaría por debajo del 8 % del cupo (RN-34; SUP-42)."
+    bajo_reserva: "Riesgo medio antes de la provisión: el saldo previsto queda bajo la reserva preventiva de la sucursal (RN-40, RN-44; SUP-42)."
+    preventiva: "Riesgo bajo antes de la provisión: provisión preventiva; el saldo previsto queda sobre el 8 % del cupo, sin riesgo inmediato de agotamiento (RN-19A, RN-24; SUP-42)."
+    sobre_cupo: "Riesgo medio antes de la recolección: sin ella el saldo al cierre superaría el cupo (RN-35; SUP-42)."
+    exceso_cupo: "Riesgo alto antes de la recolección: sin ella el saldo al cierre superaría el cupo de la bóveda (RN-38; SUP-42)."
+    ocioso: "Riesgo bajo antes de la recolección: el saldo queda dentro del cupo; se recoge efectivo ocioso sobre el techo (RN-40; SUP-42)."
+  # nivel_riesgo_previo (SUP-44): entidad con flujo neto de salida pronosticado mayor que su cupo
+  cupo_insuficiente:
+    m2_sucursal: >-
+      Cupo insuficiente (RN-18, RN-21): en {n} día(s) ({fechas}) el flujo neto de salida pronosticado (hasta
+      {max_neto} COP) supera el cupo de {cupo} COP. Con una atención diaria que completa hasta el cupo (RN-19A,
+      RN-24) quedan al menos {exceso} COP sin atender. RN-28 permite consolidar varias atenciones del mismo tipo
+      en una acción diaria; no se programan atenciones adicionales porque la provisión es la necesaria para
+      completar hasta el cupo (RN-19A) y el cupo lo fija el banco (RN-18, RN-31) (SUP-44).
+    general: >-
+      Cupo insuficiente (RN-18, RN-21): en {n} día(s) ({fechas}) el flujo neto de salida pronosticado (hasta
+      {max_neto} COP) supera el cupo de {cupo} COP. Con una atención diaria que completa hasta el cupo (RN-19A,
+      RN-24) quedan al menos {exceso} COP sin atender. No se programan atenciones adicionales porque la provisión
+      es la necesaria para completar hasta el cupo (RN-19A, RN-11) y el cupo lo fija el banco (RN-18, RN-09)
+      (SUP-44).
+
 # Hoja 03: segmentos y KPI calculados de las salidas del horizonte.
 hoja_03:
   semana_dias: 7
@@ -289,3 +324,467 @@ validacion:
     "03_Metricas_Desarrollo": [id_proveedor, modelo, variable_o_kpi_evaluado, metrica, valor_metrica, unidad, segmento]
     "05_M6_Fondos": [id_proveedor, fondo_id, fecha_objetivo, denominacion_cop, accion_sugerida, nivel_riesgo, monto_sugerido_cop]
     "04_Descripcion_Solucion": [id_proveedor, modelo, algoritmo_o_enfoque, limitaciones_identificadas, supuestos]
+
+# -------------------------------------------------------------------------------------------------------------------
+# Hoja 04 v2 (interruptor `hoja04_v2` de conf/alx.yml; exige `supuestos_alx`). Textos para el evaluador, sin
+# identificadores internos; las cifras salen de las salidas de la corrida (contratos) salvo `anexo_c.cifras`, que
+# viene de la evaluacion de imputacion del laboratorio (ver comentario). Cada bloque que describe un comportamiento
+# detras de un interruptor tiene variante `on` y `off`. La validacion (prohibidos, tildes, oraciones repetidas, SUP
+# con titulo) la hace publish/validate_xlsx.py y hace fallar U7.
+hoja_04_v2:
+  horizonte: "1 a 15 días desde el corte (1 al 15 de septiembre de 2026)"
+  filas:
+    "M1|pagado":
+      definicion: "Efectivo entregado por el ATM dispensador en el día (transacciones de retiro 220, 420 y 520), en COP."
+      transformacion: >-
+        Política vigente: se pide provisión el día en que el saldo proyectado con el pronóstico baja del {umbral} del
+        cupo operativo, con margen de {margen} sobre el pronóstico, y se llena hasta el cupo en la fecha indicada
+        (RN-09, RN-11, RN-34; lead time de {lead} días, SUP-16). Los montos fijos se miden solo como sensibilidad y no
+        se publican.
+      dependencias: "Calendario oficial de Colombia (librería holidays 0.106, país CO) y festivos de Ecuador (país EC) por la frontera de Ipiales."
+      supuestos: ["01", "02", "03", "04", "06", "15", "16", "17", "18", "19", "21", "24", "25", "26", "27", "28", "30",
+                  "31", "33", "34", "35", "36", "38", "39", "40", "42", "44", "45", "48", "49", "50", "51"]
+    "M2|pagado":
+      definicion: "Efectivo entregado por el multifuncional en el día, en COP."
+      transformacion: >-
+        Saldo neto con el cash-in (RN-19, RN-30): provisión hasta el cupo el día en que el saldo proyectado bajaría del
+        8 % del cupo (RN-19A, RN-21, RN-34); el cupo lo fija el banco (RN-18).
+      dependencias: "Calendario oficial de Colombia (librería holidays 0.106, país CO) y festivos de Ecuador (país EC) por la frontera de Ipiales."
+      supuestos: ["01", "02", "03", "05", "06", "17", "18", "21", "24", "25", "26", "27", "28", "30", "31", "32", "33",
+                  "34", "35", "36", "38", "39", "40", "42", "43", "44", "45", "48", "49", "50", "51"]
+    "M2|cash_in":
+      definicion: "Efectivo recibido (depósitos) por el multifuncional en el día, en COP."
+      transformacion: >-
+        Saldo neto (RN-30): el cash-in se recicla; recolección al cierre de lo que pase del cupo (RN-22, RN-35).
+      dependencias: "Calendario oficial de Colombia (librería holidays 0.106, país CO) y festivos de Ecuador (país EC) por la frontera de Ipiales."
+      supuestos: ["01", "02", "03", "05", "06", "17", "18", "21", "24", "25", "26", "27", "28", "30", "31", "32", "33",
+                  "35", "36", "38", "39", "40", "42", "43", "44", "45", "48", "49", "50", "51"]
+    "M3|entradas":
+      definicion: "Efectivo que entra a la bóveda de la sucursal física por su operación propia en el día (RN-36), en COP."
+      transformacion: &transf_m3 >-
+        Política diferenciada por sucursal (RN-40, RN-41): provisión cuando el saldo previsto baja de la reserva y
+        recolección de lo que pasa del techo o del cupo; el saldo simulado se mantiene entre 0 y el cupo (RN-38, RN-39)
+        y la regla de cada acción queda en la hoja 02.
+      dependencias: "Calendario oficial de Colombia (librería holidays 0.106, país CO) y festivos de Ecuador (país EC) por la frontera de Ipiales."
+      supuestos: ["03", "17", "18", "22", "24", "25", "26", "27", "28", "30", "31", "32", "33", "35", "36", "37", "38",
+                  "39", "40", "42", "43", "44", "48", "49", "51", "M3-01", "M3-02"]
+    "M3|salidas":
+      definicion: "Efectivo que sale de la bóveda de la sucursal física por su operación propia en el día (RN-36), en COP."
+      transformacion: *transf_m3
+      dependencias: "Calendario oficial de Colombia (librería holidays 0.106, país CO) y festivos de Ecuador (país EC) por la frontera de Ipiales."
+      supuestos: ["03", "17", "18", "22", "24", "25", "26", "27", "28", "30", "31", "33", "35", "36", "37", "38", "39",
+                  "40", "42", "43", "44", "48", "49", "51", "M3-01", "M3-02"]
+    "M4|ingreso_efectivo_cbr":
+      definicion: "Ingreso de efectivo por puntos CBR agregado por fondo y día (RN-48), en COP."
+      transformacion: "Insumo de ingreso del balance de fondos de M6 (RN-70); M4 se publica y se usa sin corregir (SUP-20)."
+      dependencias: "Calendario oficial de Colombia (librería holidays 0.106, país CO)."
+      supuestos: ["02", "17", "18", "20", "24", "25", "26", "27", "30", "31", "33", "36", "38", "39", "40", "49"]
+    "M5|ingreso_efectivo_clientes":
+      definicion: "Ingreso de efectivo por clientes agregado por fondo y día (RN-48), en COP."
+      transformacion: "Insumo de ingreso del balance de fondos de M6 (RN-70); M6 corrige su total con un factor de red acotado (SUP-20)."
+      dependencias: "Calendario oficial de Colombia (librería holidays 0.106, país CO) y festivos de Ecuador (país EC) por la frontera de Ipiales."
+      supuestos: ["02", "17", "18", "20", "24", "25", "26", "27", "28", "30", "31", "33", "36", "38", "39", "40", "49",
+                  "51"]
+    "M6|saldo_proyectado":
+      definicion: "Saldo proyectado de la bóveda por fondo y denominación (balance determinista derivado de M1–M5 y de las acciones recomendadas), en COP."
+      enfoque: >-
+        Balance determinista por fondo y denominación con las proyecciones de M1–M5 y recomendador costeado con el
+        Anexo E. No entrena ni pronostica: simula el saldo día a día y, ante un faltante o un excedente, evalúa las
+        operaciones de RN-84 habilitadas (traslado_fondos, venta_efectivo, consignacion_banrep y retiro_banrep; BanRep
+        solo en Cali, SUP-13) y elige la de menor costo que resuelve la necesidad, o conserva el saldo cuando moverlo
+        cuesta más que almacenarlo (RN-78 a RN-80).
+      variables: >-
+        Proyecciones de M1–M5 (pagado de M1 y M2, cash-in de M2, entradas y salidas de M3, ingresos de M4 y M5 con el
+        factor de red de M5), saldo inicial por denominación (SUP-07), mezcla histórica por denominación (SUP-09),
+        mínimos y máximos operativos (SUP-10), habilitación de operaciones (SUP-08, SUP-13, SUP-14), tasa de venta
+        (SUP-23) y tarifas del Anexo E.
+      relevantes: "Efecto neto de M1–M5 sobre el fondo, mezcla por denominación y mínimos y máximos operativos."
+      metodologia: "Completitud del saldo inicial y cobertura de las necesidades del fondo (sin WAPE, SUP-11); la identidad de RN-71 se verifica en la hoja 03."
+      transformacion: "Recomendaciones costeadas por fondo, denominación y día (RN-72 a RN-85), con mínimos y máximos objetivo (SUP-10)."
+      dependencias: "Anexo E (tarifas) y calendario oficial de Colombia para los días hábiles (RN-71A)."
+      supuestos: ["07", "08", "09", "10", "11", "12", "13", "14", "20", "23", "24", "25", "26", "29", "40", "46", "47"]
+      # Supuestos que se citan solo con su interruptor encendido (conf/alx.yml).
+      supuestos_interruptor: {m6_traslado_t1: ["52"], m6_tarifa_traslado_declarada: ["53"]}
+  # Enfoque por modelo publicado (id resuelto de la receta). Sin entrada -> KeyError (nunca se publica un id).
+  enfoques:
+    ml_lgbm_v4_tw: >-
+      Modelo de aprendizaje automático global (LightGBM con pérdida Tweedie, adecuada para montos no negativos con
+      ceros), entrenado con los {n_entidades} cajeros a la vez y directo a 15 días con el horizonte como variable;
+      predice la razón entre el valor del día y el nivel reciente del cajero. Elegido por validación temporal con
+      origen rodante (16 cortes de selección y 3 de confirmación) con una regla de adopción declarada antes de medir
+      (SUP-30).
+    ml_ens_pond_m2_pagado: &enfoque_pond >-
+      Promedio ponderado con pesos fijos de {n_miembros} modelos: {miembros}. Los pesos se fijaron con los 16 cortes de
+      selección y quedaron congelados (SUP-32); el promedio se eligió por validación temporal con origen rodante y
+      una regla de adopción declarada antes de medir (SUP-30). Entrenado con las {n_entidades} entidades a la vez.
+    ml_ens_pond_m2_cash_in: *enfoque_pond
+    ml_ens_pond_m3_entradas: *enfoque_pond
+    ml_lgbm_v1_l1: >-
+      Modelo de aprendizaje automático global (LightGBM con pérdida L1, que apunta a la mediana), entrenado con las
+      {n_entidades} sucursales a la vez y directo a 15 días con el horizonte como variable, con calendario colombiano
+      detallado. Elegido por validación temporal con origen rodante y una regla de adopción declarada antes de medir
+      (SUP-30).
+    combo_perfil_gbml1: >-
+      Promedio simple (pesos iguales) de {n_miembros} modelos: {miembros}. Ningún candidato de aprendizaje automático
+      cumplió la regla de adopción declarada antes de medir en esta serie, por lo que se mantiene este promedio
+      (SUP-30). Pronostica los {n_entidades} fondos.
+    ml_ens_media_top3_m5: >-
+      Promedio simple (pesos iguales) de {n_miembros} modelos de aprendizaje automático global: {miembros}. Elegido por
+      validación temporal con origen rodante y una regla de adopción declarada antes de medir (SUP-30). Pronostica los
+      {n_entidades} fondos.
+  # Nombre de negocio de cada componente de los promedios.
+  nombres_modelos:
+    gbm_cal: "boosting global con calendario de pagos"
+    gbm_cal_l1: "boosting global con calendario de pagos y pérdida L1"
+    prophet_cal: "modelo de series de tiempo por entidad con regresores de pago y festivos (Prophet)"
+    perfil_dom: "perfil por día de la semana y día del mes"
+    ml_cat_v4: "CatBoost global con contexto del maestro"
+    ml_lgbm_v4_l1: "LightGBM global con pérdida L1 y contexto del maestro"
+    ml_lgbm_v4_opt_m2_pagado: "LightGBM global afinado con contexto del maestro"
+    ml_lgbm_v3_l1: "LightGBM global con pérdida L1, rezagos y perfil propio"
+    ml_lgbm_v3_opt_m2_cash_in: "LightGBM global afinado con rezagos y perfil propio"
+    ml_cat_v3: "CatBoost global con rezagos y perfil propio"
+    ml_lgbm_v1_l1: "LightGBM global con pérdida L1 y calendario detallado"
+    ml_rf_v1: "bosque aleatorio global con calendario detallado"
+    ml_et_v1: "árboles extremadamente aleatorizados globales con calendario detallado"
+    ml_lgbm_v1_l1_opt_m5: "LightGBM global afinado con calendario detallado"
+  # Frase de negocio por grupo de variables (orden de presentacion = orden de esta lista).
+  grupos:
+    base: "nivel y tendencia reciente de la entidad (medias de 7 y 28 días, variabilidad y fracción de días con dato), día de la semana y su perfil relativo, y el horizonte (1 a 15 días)"
+    calendario: "día del mes, días al fin de mes, festivo de Colombia, víspera, día siguiente y día hábil"
+    pago: "días desde y hasta la fecha de pago (quincena y fin de mes)"
+    dom_entidad: "perfil propio de la entidad por día del mes"
+    pago_detalle: "detalle del pago: día de pago, quincena o fin de mes, uno a tres días después del pago, víspera del pago, días 1 y 2 del mes y días hábiles desde y hasta el pago"
+    festivo_detalle: "detalle de festivos: día no hábil, largo del bloque no hábil, último hábil antes y primer hábil después de un puente, puente, víspera y día siguiente hábiles, días hasta y desde el festivo, y festivos de Ecuador por la frontera de Ipiales"
+    temporada: "temporada: mes, semana del mes, primas de junio y diciembre, temporada decembrina, fin e inicio de año, Semana Santa, feria de Cali y carnaval de Pasto"
+    rezagos: "rezagos del mismo día de la semana, medias exponenciales de 7 y 28 días, medias de 14 y 91 días, variabilidad, pendiente y máximos recientes"
+    anual: "mismo periodo del año anterior y crecimiento interanual"
+    perfil_entidad: "perfil propio de la entidad en días de pago, festivos, días siguientes y no hábiles"
+    intermitencia: "intermitencia: fracción de ceros y de días sin dato en 28 días, días desde el último dato, racha sin dato y fracción de días cerca del máximo"
+    contexto: "contexto del maestro de cajeros vigente en cada corte (cupo, administrador, tipo de equipo y ciudad; último registro anterior o igual al corte) y nivel de la red de su ciudad"
+    entidad_cat: "identificador de la entidad como variable categórica"
+    prophet_calendario: "en el componente de series de tiempo, tendencia, estacionalidad semanal y mensual y regresores de día de pago (con la víspera y los 3 días siguientes) y de festivos"
+    perfil_dom: "en el componente de perfil, mediana por día de la semana de las últimas 8 semanas por el factor de día del mes de la red (6 meses)"
+  # Grupos fijos de los modelos base que no son ML global (familia -> grupos).
+  grupos_modelos_base:
+    prophet_calendario: [prophet_calendario]
+    perfil_dom: [perfil_dom]
+  variables_prefijo: "Solo datos hasta el corte del 31 de agosto de 2026. Variables: {grupos}."
+  # Nombre de negocio de los grupos de la explicabilidad (variables_mas_relevantes).
+  importancia:
+    texto: "Medido en el backtest, por grupo de variables (puntos de WAPE que se pierden al barajar el grupo): {grupos}. {alcance}"
+    modelo_publicado: "Mide el modelo publicado."
+    componente: "Mide el componente de aprendizaje automático de mayor peso del promedio publicado."
+    nombres:
+      dia_de_semana: "día de la semana"
+      dia_del_mes_y_pago: "día del mes y pago"
+      festivos: "festivos"
+      nivel_y_tendencia: "nivel y tendencia"
+      horizonte: "horizonte"
+  metodologia:
+    m1_m2: >-
+      Validación temporal: backtest sobre la última ventana de 15 días del entrenamiento ({desde} a {hasta}), porque
+      el periodo de evaluación no tiene datos reales (SUP-02); WAPE, MAE y sesgo con las fórmulas del §8. Con la
+      lectura que corresponde a RN-08 y al último párrafo del Anexo C (la ausencia de registro con la red operando vale
+      0 COP), el WAPE de {objetivo} es {rn08}; con la lectura de entrenamiento (la ausencia es faltante) es {base}. La
+      hoja 03 publica las dos: la de entrenamiento como fila principal y la de RN-08 rotulada.
+    m3: >-
+      Validación temporal: backtest sobre la última ventana de 15 días del entrenamiento ({desde} a {hasta}), porque
+      el periodo de evaluación no tiene datos reales (SUP-02). WAPE de {objetivo} con la fórmula literal del §8 (todas
+      las sucursales): {lit}; excluyendo del agregado las sucursales con todos sus reales en cero en la ventana
+      (SUP-27): {sup27}, que es la cifra de la hoja 03.
+    m4_m5: >-
+      Validación temporal: backtest sobre la última ventana de 15 días del entrenamiento ({desde} a {hasta}), porque
+      el periodo de evaluación no tiene datos reales (SUP-02); WAPE, MAE y sesgo con las fórmulas del §8 (WAPE de
+      {objetivo}: {base}).
+  bloques:
+    base: "El periodo de evaluación (1 al 15 de septiembre de 2026) no tiene observaciones reales: la validación es el backtest interno (SUP-02)."
+    cifras_objetivo: "Error de {objetivo} en la ventana de backtest (lectura de entrenamiento): WAPE {wape}, sesgo {sesgo}, {n_obs} observaciones."
+    anexo_c: >-
+      Tratamiento del Anexo C (RN-04B): los {n_dias} días sin dato en toda la red ({bloques}) quedan como faltantes,
+      nunca en cero. Técnica: no se imputan; el entrenamiento los maneja como faltantes (rezagos, medias y perfiles se
+      calculan solo con los días con dato) y no entran a las métricas de la hoja 03 (SUP-02). Justificación: el dato no
+      puede recuperarse y la imputación evaluada no mejoró los modelos según la regla declarada antes de medir
+      (SUP-36). Bloque de 12 días consecutivos de abril (6 al 17 de abril de 2026): mismo tratamiento, faltante en el
+      entrenamiento y fuera de las métricas.
+    anexo_c_efecto: >-
+      Efecto estimado sobre el pronóstico: se midió entrenando los mismos modelos con los faltantes imputados frente a
+      dejarlos faltantes; la medición imputa también silencios cortos con la red operando (en el corte del 30 de abril
+      de 2026, {celdas_bloque} de las {celdas_total} celdas imputadas son del Anexo C). Positivo = el WAPE sube
+      (empeora) al imputar. En los cortes del 30 de abril y el 31 de mayo de 2026, los únicos que contienen el bloque de
+      abril y ningún otro día del Anexo C, el WAPE cambia {c1} y {c2} puntos porcentuales. En promedio sobre los
+      {n_sel} cortes de selección cambia {sel} ± {ee_sel} y sobre los {n_conf} de confirmación {conf} ± {ee_conf},
+      dentro de 2 errores estándar (SUP-36). En el pronóstico de septiembre, el perfil propio de cada entidad y las
+      medias exponenciales se calculan con los últimos 190 días, que incluyen el bloque; como esos días son faltantes,
+      no entran a los promedios: aunque hubieran tenido dato, su peso en la media exponencial de 28 días sería del
+      orden de 6 en 100.000. Las demás variables miran como máximo 91 días atrás o el mismo periodo del año anterior.
+      El bloque también influye a través de las filas de entrenamiento de abril y mayo.
+    # Cifras de la evaluacion de imputacion (S2 - S1, champion de cada serie, bloque y ciudad `total`), en puntos
+    # porcentuales. Fuente: ALX/imputacion/resultados/ml/efecto_imputacion.csv (cortes 2026-04-30 y 2026-05-31),
+    # efectos_resumen.csv (efecto = imputacion; media y ee_dif por grupo) e historia_imputada_por_origen.csv (celdas
+    # del corte 2026-04-30, lectura cero_real). La prueba tests_alx/test_correcciones_v2.py las recalcula.
+    anexo_c_cifras:
+      "M1|pagado": {celdas_bloque: "4.755", celdas_total: "9.721", c1: "+0,15", c2: "−0,15", n_sel: 16, sel: "+0,10", ee_sel: "0,11", n_conf: 3, conf: "−0,14", ee_conf: "0,12"}
+      "M2|pagado": {celdas_bloque: "512", celdas_total: "2.224", c1: "−0,64", c2: "−0,02", n_sel: 10, sel: "−0,06", ee_sel: "0,10", n_conf: 3, conf: "+0,05", ee_conf: "0,12"}
+      "M2|cash_in": {celdas_bloque: "450", celdas_total: "2.256", c1: "−0,12", c2: "+0,12", n_sel: 10, sel: "+0,11", ee_sel: "0,11", n_conf: 3, conf: "−0,08", ee_conf: "0,19"}
+    silenciosos: "Los {n} equipos sin dato reciente con la red operando ({codigos}) se publican con el tratamiento del informe de equipos silenciosos: {tratamientos} (SUP-50)."
+    calendario_rn04: >-
+      Calendario (RN-04): festivo = festivo nacional de Colombia según la librería holidays 0.106 (país CO) más los
+      ajustes de la configuración del calendario (hoy ninguno); quincena = día 15 de cada mes; fin de mes = último día
+      calendario del mes. Si la quincena o el fin de mes caen en sábado, domingo o festivo, la fecha de pago se corre
+      al día hábil anterior (SUP-49). Se incorporan como variables del modelo: {incorporacion}.
+    eventos: >-
+      Variables adicionales propias (§5): primas (15 al 30 de junio y 15 al 24 de diciembre), temporada decembrina,
+      fin e inicio de año, Semana Santa, feria de Cali (25 al 30 de diciembre) y carnaval de Pasto (2 al 7 de enero),
+      definidas por fecha; festivos de Ecuador (librería holidays, país EC) por la frontera de Ipiales. Origen:
+      definición propia por fecha y la librería holidays; uso: indicadores del día pronosticado; tratamiento: ninguno
+      adicional. Aporte medido: el grupo de festivos pesa {aporte} puntos de WAPE en el backtest; las variables de
+      temporada no se midieron por separado (SUP-51).
+    historia_corta: >-
+      Entidades con poca historia (RN-16): no hay un modelo aparte; el modelo global comparte con ellas lo aprendido en
+      toda la red y, si no hay ni un ejemplo de entrenamiento, el pronóstico es la media de los últimos 28 días. Las
+      entidades con menos de 90 días de historia son el segmento con más error (SUP-17).
+    demanda_censurada: >-
+      El objetivo es lo dispensado: cuando el cajero se agota, la demanda real queda censurada y no se reconstruye,
+      porque no hay saldo diario observado; el pronóstico puede quedar bajo la demanda en cajeros que se agotan seguido
+      (SUP-34).
+    decisiones_m1: >-
+      Decisiones de la política de M1: lead time de {lead} días (RN-11: la provisión entra al inicio del día objetivo;
+      1 día se mide como sensibilidad; SUP-16); sin tope de visitas (RN-15), con cada provisión justificada por RN-34;
+      RN-08 aplicada al pronóstico de los equipos silenciosos (SUP-50). Plan de 15 días fijo, medido como lo pide el
+      pliego en 13 episodios históricos con lead time 0: 3,4 % de días agotados (IC 95 % por remuestreo de episodios:
+      2,0–5,3 %) frente a 12,9 % de la regla anterior, con menos agotados en los 13 episodios. Remanente promedio antes
+      de la provisión de 24,6 % del cupo (IC 95 %: 20,5–29,2 %), sobre el 22 % de RN-12 aunque el intervalo lo incluye;
+      el exceso lo concentran diciembre de 2025 (43,6 %) y abril de 2026 (33 %). Subir el margen baja los agotados pero
+      sube el remanente (margen de 25 %: 30,9 %): las dos metas de RN-12 se oponen y se reporta la frontera (SUP-15,
+      SUP-19). El 3,4 % supone que cada provisión llena hasta el cupo con el saldo real del día; con los montos
+      publicados sin ajustar (cupo menos saldo proyectado, RN-11) los días agotados suben a 6,6 %.
+    lecturas_rn08_nota: >-
+      El entrenamiento trata la ausencia de registro como faltante porque es una caída imposible de anticipar; entrenar
+      con esos ceros empeoró el WAPE. El banco puntúa con RN-08 (ausencia con la red operando = 0 COP), por lo que el
+      error esperado es el de la lectura RN-08 (SUP-02, SUP-50).
+    nivel_riesgo:
+      encendido: >-
+        El nivel_riesgo de la hoja 02 mide el riesgo antes de la acción (SUP-42): en provisiones, alto si sin la
+        provisión el saldo del día se agota (RN-12, RN-21), medio si queda por debajo del 8 % del cupo (RN-34) y bajo
+        si la provisión es preventiva; en M3 toda provisión nace de un saldo previsto bajo la reserva preventiva y queda
+        en medio o alto (RN-40, RN-44). En recolecciones, medio en M2 (saldo al cierre sobre el cupo, RN-35); en M3,
+        alto si el saldo superaría el cupo (RN-38) y bajo si se recoge efectivo ocioso (RN-40). Las entidades cuyo flujo
+        neto de salida pronosticado supera su cupo quedan en alto en todas sus filas, con la explicación de cupo
+        insuficiente (SUP-44).
+      apagado: >-
+        El nivel_riesgo de la hoja 02 es el riesgo residual después de la acción: bandas de ocupación sobre el saldo
+        después de actuar (alto bajo el 8 % del cupo o sobre el cupo, medio bajo el 16 %, bajo en el resto); el riesgo
+        antes de actuar está en porcentaje_ocupacion_antes y en las alertas.
+    costo_m1: "Costo (RN-04A): la tabla urbana o interurbana del Anexo E sale de la tipología de facturación; los dispensadores INDIVIDUAL usan la tarifa urbana y los equipos de sucursal tienen costo 0 declarado (SUP-21)."
+    costo_m2:
+      encendido: "Costo (RN-04A): los multifuncionales de TDV fuera del municipio de la ciudad del fondo usan la tarifa MF interurbano del Anexo E ({n_acciones} acciones de {n_equipos} equipos); los de sucursal tienen costo 0 declarado (SUP-21)."
+      apagado: "Costo (RN-04A): los multifuncionales de TDV se costean con la tarifa MF urbano del Anexo E; los de sucursal tienen costo 0 declarado (SUP-21)."
+    costo_m3:
+      encendido: "Costo (RN-04A): tarifa de sucursales del Anexo E según Ubicación, Escalas y transportadora de Oficinas; la escala interurbana sale del campo Escalas ({n_distintas} sucursal(es) donde difiere del número de la Ubicación) (SUP-22)."
+      apagado: "Costo (RN-04A): tarifa de sucursales del Anexo E según Ubicación y transportadora de Oficinas; la escala interurbana sale del número de la Ubicación (SUP-22)."
+    m3_politica: >-
+      M3 aplica la política diferenciada por sucursal: reserva según la variabilidad neta, con tope del {reserva_max}
+      del cupo; provisión hasta la reserva más {dias_cobertura} días de salidas medias; recolección sobre la reserva más
+      {dias_techo} días, con {historia_dias} días de historia. Con menos de {min_obs} días válidos aplica la regla
+      vigente del banco, sin pronóstico (RN-16, RN-52). El primer día del horizonte concentra la recolección del exceso
+      acumulado: {dia1_n} acciones por {dia1_monto} COP. El techo de {dias_techo} días se eligió entre 6, 10 y 15 con un
+      criterio escrito antes de medir: mantiene los días agotados de la regla vigente, reduce el efectivo ocioso (RN-40,
+      RN-44) y es el de menor costo en la ventana (SUP-M3-01).
+    m3_omisiones:
+      encendido: "En el horizonte se omitieron {n} recolecciones de efectivo ocioso por {cop} COP porque su monto no superaba el costo de la visita; ese efectivo queda en la bóveda dentro del cupo y se recoge en la siguiente visita (SUP-43)."
+      cero: "No se omitió ninguna recolección por monto (SUP-43)."
+      apagado: "Las recolecciones de efectivo ocioso se recomiendan sin un monto mínimo frente al costo de la visita (SUP-43)."
+    m5: "M5 muestra un WAPE alto ({wape}) y subestima el total: la serie de ingreso por clientes es ruidosa, con picos sin patrón de calendario; se publica sin corregir y M6 corrige su total con un factor de red acotado (SUP-20)."
+    laboratorio: >-
+      Validación del laboratorio: la regla de adopción R1–R5 se declaró antes de medir y se aplicó sin cambios
+      (SUP-30), con k = 2 errores estándar para variantes, afinados y ensambles que contienen la referencia, por la
+      búsqueda múltiple (SUP-31); los ponderados usan pesos congelados con los 16 cortes de selección (SUP-32) y el
+      modelo registrado lleva empaquetado su contexto, de modo que reproduce lo evaluado (SUP-33). La entidad con todos
+      sus reales en cero en la ventana sale solo del WAPE agregado (SUP-27), el maestro de cajeros es el vigente en cada
+      corte, nunca uno posterior (SUP-28), y el duplicado del 13 de mayo de 2026 y los montos corruptos se corrigen
+      como dato (SUP-35). La repetición con datos corregidos cubre solo a los finalistas (SUP-38).
+    m6_base: "Balance determinista sin WAPE sobre el saldo (SUP-11): la validación es la completitud del saldo inicial y la cobertura de las necesidades."
+    m6_operaciones:
+      encendido: "Operaciones de RN-84 usadas en el horizonte: {usadas}. No usadas: {no_usadas}."
+      apagado: "Operaciones de RN-84 usadas en el horizonte: {usadas}. No usadas: {no_usadas}."
+    m6_no_usada:
+      banrep: "habilitada solo en los fondos de Cali (SUP-13); se evaluó en cada necesidad de esos fondos y se eligió otra alternativa por menor costo o porque el día no era hábil (RN-71A)"
+      cambio_denominacion:
+        encendido: "es un cambio con el Banco de la República (RN-84) y no se recomienda dentro del fondo (SUP-14)"
+        apagado: "habilitado dentro del fondo, sin necesidad que lo requiriera en el horizonte (SUP-14)"
+      intercambio_bancos:
+        encendido: "es con otras entidades (RN-84) y no se recomienda dentro del fondo (SUP-14)"
+        apagado: "habilitado dentro del fondo, sin necesidad que lo requiriera en el horizonte (SUP-14)"
+      otra_accion_justificada: "no se usó: las necesidades se resolvieron con las operaciones anteriores o se conservó el saldo por costo"
+    m6_cajeros_sucursal:
+      encendido: "Flujo de los canales (SUP-12): {mapeados} de {total} cajeros administrados por sucursal se integran al fondo que atiende su sucursal (Oficinas: ciudad fondo y transportadora). {excluidos}{caso_2691}"
+      excluidos: "{n} quedan fuera ({codigos}: {detalle}) porque su sucursal no figura en Oficinas. "
+      sin_excluidos: "Todos los cajeros administrados por sucursal se integran. "
+      caso_2691: "El cajero 2691 figura en Pasto en el maestro y en la hoja 01, pero su sucursal (70) se atiende desde Cali y su flujo va a CALI|TRANSPORTADORA_002; asignado a Pasto serían {cop} COP de salidas en PASTO|TRANSPORTADORA_001."
+      apagado: "Los cajeros administrados por sucursal no se integran a ningún fondo: su flujo queda fuera del balance (SUP-12)."
+    m6_traslado:
+      encendido: >-
+        Traslados (SUP-52): el Anexo E (hoja Fondos) indica que el efectivo sale del fondo origen en la fecha de
+        ejecución y está disponible en el fondo destino al día siguiente, y RN-74 pide las dos filas con la misma fecha.
+        Por eso el traslado se ordena el día anterior al faltante proyectado: las filas de salida y de entrada llevan la
+        fecha de ejecución y el destino lo recibe al cierre de ese día, que es su saldo inicial del día siguiente
+        (RN-71). Un faltante del mismo día no se cubre con un traslado: se evalúan las demás operaciones de ese día.
+        {cifras}
+      apagado: "Balance sin traslado a T+1: el traslado se aplica el mismo día en origen y destino (RN-74)."
+      cifras: "En el horizonte hay {pares} traslados. {n} faltantes del mismo día se resolvieron sin traslado ({detalle}); los del 1 de septiembre no admiten traslado porque habría que ordenarlo antes del corte."
+      sin_mismo_dia: "En el horizonte hay {pares} traslados y ningún faltante del mismo día quedó sin cubrir por esta regla."
+    m6_tarifa_traslado:
+      encendido: >-
+        Tarifa de los traslados entre ciudades (SUP-53): el Anexo E trae la tarifa de cada ruta por transportadora y
+        no dice cuál de las dos transportadoras la cobra cuando los fondos son de transportadoras distintas; se usa la
+        del fondo origen, que entrega el efectivo y en cuya fila se registra el costo (RN-74). Costo de los {n}
+        traslados con costo: {usado} COP; con la tarifa de la transportadora del fondo destino serían {alterno} COP.
+      apagado: ""
+    m6_resto: >-
+      Los disponibles se
+      corrigen al cargarlos (SUP-29): se excluyen las filas TOTAL de las transportadoras 002 y 003 (subtotal que
+      duplicaba el saldo) y la transportadora 001 se pasa de cantidad de billetes a pesos hasta el 17 de julio de 2026,
+      cambio detectado en los datos. Para mínimos y máximos, los días con valor en blanco (23 días de la 004 en 50.000)
+      y los días con dos formatos de reporte (30 fondo-días de la 002 y la 003) se tratan como faltantes, nunca como
+      cero ni sumando dos reportes. Mínimos y máximos por percentiles del histórico corregido (SUP-10). La mezcla por
+      denominación (SUP-09) se calcula con los disponibles corregidos, sin ajustar el perfilado ni el desbalance
+      persistente entre fondos. El beneficio de la venta usa la tasa observada en el consolidado de ventas (SUP-23, no
+      garantizada) y la venta no tiene costo en el Anexo E. El costo de almacenamiento se reporta aparte del costo de
+      las acciones. El nivel_riesgo de la hoja 05 es el residual después de actuar, con bandas por mínimo y máximo
+      (alto si el saldo queda bajo el 50 % del mínimo, medio si conserva un excedente sobre el máximo, bajo en el
+      resto); las alertas de M6 miden el riesgo antes de actuar (SUP-47). El factor móvil de corrección del total se
+      aplica solo a M5 (SUP-20). Los archivos Historico BANREP e Historico Traslados que lista el Anexo A no se
+      recibieron: la habilitación de BanRep y de las operaciones se suple con SUP-08 y SUP-13 (SUP-46). Las cifras de
+      explicacion_funcional salen del balance exacto; las columnas en COP son enteras y pueden diferir en 1 COP.
+    procedencia: >-
+      Procedencia: los pronósticos de M1–M5 se publican como PROYECTADO, el balance de M6 como SIMULADO y las
+      recomendaciones, alertas y métricas como ESTIMADO; ninguna fila del 1 al 15 de septiembre es REAL (SUP-24 a
+      SUP-26). El Excel no lleva la columna origen_dato: la llevan los contratos de salida.
+    entrega: >-
+      Los modelos publicados son los elegidos por el laboratorio con la regla de adopción (SUP-39), entrenados con los
+      datos corregidos (SUP-35) y el maestro vigente en cada corte (SUP-28); la imputación de faltantes se evaluó y no
+      se adoptó en ningún modelo (SUP-36). Se usaron la plantilla del Anexo D y las tarifas del Anexo E originales; la
+      plantilla trae 6 hojas (01 a 05 y 06_Diccionario_Campos) y no se agregan las hojas informativas que menciona el
+      pliego (SUP-40).
+  # Titulo de cada SUP citado (= titulo del registro docs/supuestos.md; lo comprueba la prueba 11).
+  sup_titulos:
+    "01": "Exclusión de métricas por cajero, no por entidad-día"
+    "02": "Ceros reales, faltantes y lectura RN-08 en el WAPE"
+    "03": "Días calendario en M1–M3"
+    "04": "Umbral de agotamiento de M1 = 8 % del cupo (RN-34)"
+    "05": "Cassette de depósitos de M2 (sin efecto)"
+    "06": "Código de cajero reutilizado: una serie por código (RN-06)"
+    "07": "Saldo inicial de M6 = último registro ≤ 31-ago por fondo y denominación"
+    "08": "Operaciones habilitadas por fondo, inferidas del histórico (M6)"
+    "09": "Reparto del efecto de M1–M5 por denominación (M6)"
+    "10": "Mínimos y máximos operativos de M6"
+    "11": "Métrica de M6 sin WAPE"
+    "12": "Flujo de M1–M3 al fondo, con los cajeros de sucursal (M6, RN-70)"
+    "13": "BanRep: habilitación por tarifa y restricción a Cali (M6, RN-75)"
+    "14": "Sin intercambio ni cambio de denominación dentro del fondo (M6, RN-84)"
+    "M3-01": "Saldo de la bóveda de M3 en [0, cupo_max_suc]"
+    "M3-02": "cupo_max_suc vigente por sucursal"
+    "15": "Nivel de servicio y costo del agotamiento (M1, M2)"
+    "16": "Lead time de la provisión (M1)"
+    "17": "Entidades con poca historia"
+    "18": "Nada posterior al corte entra a entrenar ni a elegir"
+    "19": "El 8 % de RN-34 es umbral de alerta; la política de M1 es la del pliego"
+    "20": "Corrección del total de M5 que consume M6"
+    "21": "Tarifa urbana o interurbana de los cajeros (RN-04A)"
+    "22": "Escala de la sucursal para el costo (Escalas de Oficinas)"
+    "23": "Tasa de venta de M6"
+    "24": "Métricas marcadas origen_dato = ESTIMADO"
+    "25": "Recomendaciones y alertas marcadas ESTIMADO, no SIMULADO"
+    "26": "REAL no aparece en los contratos de salida"
+    "27": "Entidad con denominador cero fuera del WAPE agregado"
+    "28": "Variables de contexto con el maestro vigente en cada origen"
+    "29": "Corrección de los disponibles de M6: sin TOTAL y TDV_001 en pesos"
+    "30": "Regla de adopción R1–R5 declarada antes de medir"
+    "31": "k = 2 en R1 por búsqueda múltiple"
+    "32": "Pesos congelados en los ensambles ponderados"
+    "33": "Contexto empaquetado en el modelo registrado"
+    "34": "Demanda censurada: se modela lo dispensado"
+    "35": "Duplicado del 13-may-2026 y valores corruptos: corrección de datos, no imputación"
+    "36": "Imputación de faltantes: evaluada y no adoptada"
+    "37": "Ceros de M3 en agosto de 2026 leídos como reales"
+    "38": "Repetición acotada del laboratorio a los finalistas"
+    "39": "Modelos finales del laboratorio en el pipeline del entregable"
+    "40": "Plantilla del Anexo D y tarifas del Anexo E de la corrida"
+    "42": "Nivel de riesgo antes de la acción (hoja 02)"
+    "43": "Monto mínimo de recolección"
+    "44": "Cupo insuficiente (M1–M3)"
+    "45": "Maestro CP vigente (snapshot del 8-sep-2026)"
+    "46": "Insumos del Anexo A no recibidos"
+    "47": "Nivel de riesgo residual de la hoja 05"
+    "48": "Columna de cumplimiento ausente en la plantilla"
+    "49": "Definiciones de calendario de RN-04"
+    "50": "RN-08 como pronóstico cero de equipos silenciosos"
+    "51": "Variables de eventos y externas (RN-04, §5)"
+    "52": "Traslado disponible en el fondo destino al día siguiente (M6, Anexo E y RN-74)"
+    "53": "Tarifa del traslado entre ciudades: la de la transportadora del fondo origen (M6)"
+  # Validacion de textos (publish/validate_xlsx.py; hojas 04 y, con `hoja03_textos_v2`, comentarios de la hoja 03).
+  prohibidos:
+    - '(?i)champion'
+    - 'PARTE \d'
+    - 'Santiago(?! de Cali)'
+    - 'Andr[eé]s'
+    - '\bALX\b'
+    - 'models:/'
+    - '@'
+    - 'escenario S\d'
+    - '(?i)fase 2'
+    - '(?i)combinado anterior'
+    - '(?i)si la imputaci'
+    - '\bD\d+\b'
+    - '\bD-[A-Z]{3,}'
+    - '\bml_\w+'
+    - '\bcombo_\w+'
+    - '\bgbm_cal'
+    - '\bprophet_cal'
+    - '\bperfil_dom'
+    - 'activa=True'
+  tildes_control: [dia, dias, pronostico, pronosticos, provision, recoleccion, metrica,
+                   metricas, validacion, politica, deposito, depositos, boveda, minimo, minimos, maximo, maximos,
+                   denominacion, informacion, administracion, ultimo, numero, razon, funcion, operacion, ocupacion,
+                   simulacion, distribucion, exclusion, correccion, perdida, deficit, accion, maxima, construccion]
+  tildes_prefijos: [estadistic, analitic]
+
+# Hoja 03 v2 (interruptor `hoja03_textos_v2`): solo cambian `comentarios` y `metodologia_validacion`; ningun valor.
+hoja_03_v2:
+  metodologia:
+    "Backtesting temporal, ventanas de 15 dias": "Backtesting temporal, ventanas de 15 días"
+    "Simulacion del plan del horizonte con el pronostico central": "Simulación del plan del horizonte con el pronóstico central"
+    "Backtest de la politica: 13 episodios historicos de 15 dias con el saldo real, lead time 0": "Backtest de la política: 13 episodios históricos de 15 días con el saldo real, lead time 0"
+  # Reemplazos en orden (expresion regular -> texto) sobre `comentarios`; despues se corrigen tildes por palabra y se
+  # quitan oraciones repetidas.
+  reemplazos:
+    - ['Backtest interno \(ultima ventana del entrenamiento, D7\); el holdout 1-15 sep tiene 0 observaciones reales \(datos hasta 31-ago, SUP-02\)\.', 'Backtest interno sobre la última ventana del entrenamiento; el periodo de evaluación del 1 al 15 de septiembre no tiene observaciones reales (los datos llegan al 31 de agosto; SUP-02).']
+    - ['Excluye los dias del Anexo C y cajeros RN-07 \(SUP-01\)\.', 'Excluye los días del Anexo C y los cajeros en conflicto RN-07 (SUP-01).']
+    - [' ?Backtest interno \(ultima ventana del entrenamiento, D7\); exclusion RN-07 por cajero activa=True\.', ' Lectura de entrenamiento: la ausencia de registro cuenta como faltante; la lectura de RN-08 está en la fila rotulada y en la hoja 04.']
+    - ["Backtest interno de '[^']+' \\(ultima ventana del entrenamiento, D7\\); M3 sin exclusion RN-07 \\(D8\\)\\.", 'En M3 no aplica la exclusión RN-07.']
+    - ["Backtest interno de '[^']+' \\(ultima ventana del entrenamiento, D7\\); M4/M5 sin exclusion RN-07 \\(no aplica a puntos CBR/clientes\\)\\.", 'En M4 y M5 no aplica la exclusión RN-07 (puntos CBR y clientes).']
+    - ['SUP-02: (\d+) entidad\(es\) con todos sus reales en 0 en la ventana \((\d+) entidad-dias: ([^)]*)\) salen solo del WAPE agregado; MAE, Bias y n las incluyen\.', 'SUP-27: \1 sucursal(es) con todos sus reales en 0 en la ventana (\2 entidad-días: \3) salen solo del WAPE agregado; MAE, Bias y n las incluyen. La fórmula literal del §8, sin esa exclusión, está en la hoja 04.']
+    - ['RN-08: ausencia con red operando = 0 COP; Anexo C faltante; antes del primer registro excluido', 'Lectura de RN-08: la ausencia de registro con la red operando vale 0 COP, los días del Anexo C son faltantes y no se evalúa antes del primer registro del equipo']
+    - ['NO es un WAPE: comparar el saldo inicial contra su propia fuente daria 0 tautologico', 'No es un WAPE: comparar el saldo inicial contra su propia fuente daría 0 por construcción']
+    - [' x denominacion', ' por denominación']
+    - ['<= corte', '≤ corte']
+  # Correccion de tildes por palabra completa (sin tocar nombres de columnas unidos por guion bajo).
+  tildes:
+    dia: día
+    dias: días
+    Diagnostico: Diagnóstico
+    denominacion: denominación
+    provision: provisión
+    pronostico: pronóstico
+    politica: política
+    Fraccion: Fracción
+    accion: acción
+    historicos: históricos
+    Simulacion: Simulación
+    tautologico: tautológico
+    daria: daría
+    minimo: mínimo
+    maximo: máximo
+    maxima: máxima
+    construccion: construcción

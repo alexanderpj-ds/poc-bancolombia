@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
+from daas import alx
 from daas.costs import anexo_e
 from daas.decision import alerts as alerts_mod
 from daas.decision import optimizer
@@ -424,9 +425,40 @@ def _recommendations_block(model: str, balance_df: pd.DataFrame) -> pd.DataFrame
         else pd.Series(dtype=object)
     )
     rec["tipo_facturacion"] = rec["cod_cajero"].map(typology)
+    if model == "m2" and alx.interruptor("m2_tarifa_interurbana"):
+        rec["tipo_facturacion"] = _m2_interurban_typology(rec, cp)
     rec["concepto"] = anexo_e.atm_concepts(rec)
     costed = anexo_e.compute_costs(rec)
     return costed[columns]
+
+
+def _m2_interurban_typology(rec: pd.DataFrame, cp: pd.DataFrame) -> pd.Series:
+    """Tipologia de costeo de M2 con RN-04A (interruptor `m2_tarifa_interurbana`, SUP-21).
+
+    RN-04A: "Urbano cuando el municipio del equipo coincide con la ciudad del fondo; interurbano en los demas
+    casos." Un MF de TDV (tipologia `MF`) con `municipio` distinto de la ciudad del fondo (`ciudad` del CP) pasa a
+    `MF INTERURBANO`; si falta alguno de los dos se queda urbano con WARNING (no se inventa). Los MF de sucursal no
+    tienen transportadora y siguen con costo 0 declarado.
+    """
+    base = cp.drop_duplicates(subset=["cod_cajero"]).set_index("cod_cajero")
+    out = rec["tipo_facturacion"].copy()
+    missing = 0
+    for idx, code, kind, carrier in zip(
+        rec.index, rec["cod_cajero"], rec["tipo_facturacion"], rec["transportadora"], strict=False
+    ):
+        if not (isinstance(kind, str) and kind.strip().upper() == "MF") or anexo_e._is_empty(carrier):
+            continue
+        municipio = base["municipio"].get(code) if "municipio" in base.columns else None
+        city = base["ciudad"].get(code) if "ciudad" in base.columns else None
+        inter = anexo_e.mf_es_interurbano(municipio, city)
+        if inter is None:
+            missing += 1
+            logger.warning("M2 cajero %s sin municipio o ciudad del fondo: se costea como MF urbano (SUP-21).", code)
+        elif inter:
+            out.loc[idx] = "MF INTERURBANO"
+    n_inter = int((out == "MF INTERURBANO").sum())
+    logger.info("M2: %d acciones con tarifa MF interurbano (RN-04A); %d sin municipio/ciudad.", n_inter, missing)
+    return out
 
 
 def _metrics_block(

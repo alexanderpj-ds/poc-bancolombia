@@ -21,10 +21,13 @@ Este modulo es nucleo puro (sin FastAPI, sin I/O).
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import numpy as np
 import pandas as pd
+
+_logger = logging.getLogger(__name__)
 
 #: Politica por defecto documentada (se aplica clave a clave si falta en `model_m3.yml`).
 DEFAULT_POLICY: dict[str, Any] = {
@@ -50,6 +53,21 @@ def load_policy(config: dict[str, Any]) -> dict[str, Any]:
     out = dict(DEFAULT_POLICY)
     out.update(config.get("politica") or {})
     return out
+
+
+def min_collection_factor(pol: dict) -> float:
+    """`factor_costo` del monto minimo de recoleccion (SUP-43): float en (0, 10]; ausente = 1.0."""
+    cfg = pol.get("monto_minimo_recoleccion") or {}
+    if "factor_costo" not in cfg:
+        _logger.info("politica.monto_minimo_recoleccion.factor_costo ausente: se usa 1.0 (SUP-43).")
+        return 1.0
+    try:
+        factor = float(cfg["factor_costo"])
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"monto_minimo_recoleccion.factor_costo no numerico: {cfg['factor_costo']!r}") from error
+    if not 0.0 < factor <= 10.0:
+        raise ValueError(f"monto_minimo_recoleccion.factor_costo fuera de (0, 10]: {factor}")
+    return factor
 
 
 def policy_params(

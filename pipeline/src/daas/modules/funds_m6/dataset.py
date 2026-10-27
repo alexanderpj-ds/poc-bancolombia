@@ -279,6 +279,69 @@ def _atm_code_to_fund_map() -> dict[str, str | None]:
     return mapping
 
 
+def _norm_code(value: object) -> str | None:
+    """Codigo comparable: recortado y, si es numerico, sin decimales (`"70.0"` -> `"70"`); vacio/NA -> None."""
+    if value is None:
+        return None
+    try:
+        if bool(pd.isna(value)):
+            return None
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        number = float(text)
+    except ValueError:
+        return text
+    return str(int(number)) if number.is_integer() else text
+
+
+def _atm_code_to_fund_map_suc() -> tuple[dict[str, str | None], dict[str, str]]:
+    """Mapa cajero -> fondo con los cajeros administrados por sucursal (SUP-12, `m6_cajeros_sucursal`).
+
+    Parte de `_atm_code_to_fund_map()` (que no cambia) y, para cada cajero con `admon = SUC` (RN-08A: "administrado
+    por la sucursal indicada en codigo_sucursal"), usa el fondo de su sucursal en `oficinas` (`CIUDAD FONDO` +
+    `TTADORA`, el mismo puente de M3). Si la sucursal no esta en `oficinas` o su fondo no esta en `dim_fondo`, el
+    cajero queda sin fondo (`None`) con su motivo; nunca se le asigna un fondo arbitrario.
+
+    Returns:
+        tuple[dict, dict]: `(mapa, motivos)`; `motivos` tiene una entrada por cada cajero SUC del maestro:
+        `ok` (mapeado), `sucursal_sin_oficina` o `fondo_fuera_de_dim`.
+    """
+    mapping = dict(_atm_code_to_fund_map())
+    cp = storage.read_table(_URI_CP_HISTORY)
+    office = storage.read_table(_URI_OFFICES)
+    for col in ("ciudad", "transportadora"):
+        if col not in office.columns:
+            raise KeyError(f"oficinas sin la columna {col!r}: no se puede mapear la sucursal al fondo (SUP-12).")
+    branch = {
+        _norm_code(c): build_fund_id(city, tdv)
+        for c, city, tdv in zip(office["cod_sucursal"], office["ciudad"], office["transportadora"], strict=False)
+    }
+    dim = storage.read_table("daas://processed/_dim/dim_fondo")
+    funds_dim = set(dim["fondo_id"].astype(str))
+    reasons: dict[str, str] = {}
+    codes = cp["cod_cajero"].astype(str).str.strip()
+    for code, admin, suc in zip(codes, cp["admon"], cp["cod_sucursal"], strict=False):
+        if not (isinstance(admin, str) and admin.strip().upper() == "SUC"):
+            continue
+        key = _norm_code(suc)
+        if key is None or key not in branch:
+            mapping[code] = None
+            reasons[code] = "sucursal_sin_oficina"
+            continue
+        fund = branch[key]
+        if fund is None or str(fund) not in funds_dim:
+            mapping[code] = None
+            reasons[code] = "fondo_fuera_de_dim"
+            continue
+        mapping[code] = str(fund)
+        reasons[code] = "ok"
+    return mapping, reasons
+
+
 def _branch_code_to_fund_map() -> dict[str, str | None]:
     """Construye el mapa `cod_sucursal(str) -> fondo_id` para M3 via oficinas.
 
@@ -420,8 +483,13 @@ def net_effect_m1_m5_by_fund_day(
     dates: list[_dt.date],
     config: dict,
     factors: dict[str, float] | None = None,
+    diagnostics: dict | None = None,
 ) -> pd.DataFrame:
     """Efecto neto diario de M1-M5 por fondo (RN-70 / D-FLUJO-1 / SUP-12).
+
+    Con el interruptor `m6_cajeros_sucursal` encendido, los cajeros `admon = SUC` se rutean al fondo de su sucursal
+    (`_atm_code_to_fund_map_suc`) y, si se pasa `diagnostics`, se llena con `sin_fondo` (lista de
+    `{modelo, objetivo, cod_cajero, motivo, cop}`), `suc_mapeados` y `suc_total`.
 
     Agrega el flujo neto (ingreso - egreso) que M1-M5 pronostican por
     (`fondo_id`, `fecha`) sobre el horizonte. Ruteo del id a `fondo_id` segun el
@@ -441,6 +509,8 @@ def net_effect_m1_m5_by_fund_day(
         config: Configuracion de M6 (usa `efecto_m1_m5`).
         factors: `modelo -> factor` de `total_correction_factors`; el `yhat`
             de esos modelos se multiplica por su factor. `None` = sin correccion.
+        diagnostics: Diccionario que se llena con los cajeros de sucursal sin fondo (solo con
+            `m6_cajeros_sucursal`); `None` = no se reporta.
 
     Returns:
         pd.DataFrame: Columnas `fondo_id`, `fecha`, `efecto_neto`, `ingreso`,
@@ -487,7 +557,23 @@ def net_effect_m1_m5_by_fund_day(
     correction = df["modelo"].map(factors or {}).fillna(1.0)
     df["_flujo"] = df["_signo"].astype(float) * df["yhat"] * correction
 
-    map_atm = _atm_code_to_fund_map()
+    with_suc = alx.interruptor("m6_cajeros_sucursal")
+    if with_suc:
+        map_atm, reasons_suc = _atm_code_to_fund_map_suc()
+        suc_codes = set(reasons_suc)
+        n_mapped = sum(1 for r in reasons_suc.values() if r == "ok")
+        if suc_codes and n_mapped == 0:
+            raise RuntimeError(
+                f"m6_cajeros_sucursal: 0 de {len(suc_codes)} cajeros administrados por sucursal se mapearon a un "
+                "fondo (posible desalineacion de claves cod_sucursal/oficinas; SUP-12)."
+            )
+        if diagnostics is not None:
+            diagnostics["suc_total"] = len(suc_codes)
+            diagnostics["suc_mapeados"] = n_mapped
+            diagnostics["sin_fondo"] = []
+    else:
+        map_atm = _atm_code_to_fund_map()
+        reasons_suc = {}
     map_branch = _branch_code_to_fund_map()
 
     parts: list[pd.DataFrame] = []
@@ -517,6 +603,20 @@ def net_effect_m1_m5_by_fund_day(
                 int(without_fund["cod_cajero"].nunique()),
                 model,
             )
+            if with_suc and model in {"m1", "m2"}:
+                keys = [without_fund["objetivo"], without_fund["cod_cajero"]]
+                cop = without_fund["_flujo"].abs().groupby(keys).sum()
+                for (obj, code), value in cop.items():
+                    reason = reasons_suc.get(str(code), "sin_match_cp")
+                    logger.warning(
+                        "efecto_neto: cajero %s (%s %s) sin fondo (%s): %.0f COP fuera del balance (SUP-12).",
+                        code, model, obj, reason, float(value),
+                    )
+                    if diagnostics is not None:
+                        diagnostics["sin_fondo"].append(
+                            {"modelo": model, "objetivo": str(obj), "cod_cajero": str(code), "motivo": reason,
+                             "cop": float(value)}
+                        )
         parts.append(resolved[resolved["fondo_id"].notna()])
 
     if not parts:
@@ -719,4 +819,14 @@ def enabled_operations_matrix(
             }
         )
 
+    if alx.interruptor("m6_operaciones_rn84"):
+        # RN-84 / SUP-14: el cambio de denominacion es con BanRep y el intercambio con otras entidades; no se
+        # recomiendan dentro del fondo. Se deshabilitan con motivo explicito (lo usa `simulator._is_allowed`).
+        reason = str((cfg_ops.get("rn84") or {}).get("texto_descartada", "RN-84 (SUP-14)"))
+        for row in rows:
+            row["motivo"] = None
+            if row["operacion"] in {"intercambio", "cambio_denominacion"}:
+                row["habilitada"] = False
+                row["motivo"] = reason
+        return pd.DataFrame(rows, columns=["fondo_id", "operacion", "habilitada", "motivo"])
     return pd.DataFrame(rows, columns=["fondo_id", "operacion", "habilitada"])

@@ -73,6 +73,19 @@ def city_capacity_map_m1_m2(cutoff: _dt.date) -> pd.DataFrame:
     return _last_by_cutoff(cp, "cod_cajero", ["ciudad", "admon", "cupo"], cutoff)
 
 
+def atm_attributes_m1_m2(cutoff: _dt.date) -> pd.DataFrame:
+    """Mapa ``cod_cajero -> (municipio, ciudad, tipo_facturacion, admon)`` (RN-04A; textos de la hoja 02 v2).
+
+    Args:
+        cutoff: Fecha de corte (vigencia del maestro).
+
+    Returns:
+        pd.DataFrame: columnas ``cod_cajero, municipio, ciudad, tipo_facturacion, admon``.
+    """
+    cp = storage.read_table("daas://interim/cp_historico")
+    return _last_by_cutoff(cp, "cod_cajero", ["municipio", "ciudad", "tipo_facturacion", "admon"], cutoff)
+
+
 def city_map_m3(cutoff: _dt.date) -> pd.DataFrame:
     """Mapa ``cod_sucursal -> ciudad`` para M3 (oficinas U maestro_sucursales).
 

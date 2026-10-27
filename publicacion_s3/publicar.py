@@ -1,12 +1,18 @@
-"""Publicación PROVISIONAL (v0_provisional, revisión 2) de los pronósticos vigentes en la forma de los contratos.
+"""Publicación de los pronósticos en la forma de los contratos, parametrizada por versión (PUBLICACIONES).
+
+  - v2 (por defecto): entrega v2 (Excel 167a52e4…), prefijo output/pronosticos/v2/, insumos de la corrida B2_v2
+    (local, ~/.cache/poc-daas/corrida_entrega_v2/B2_v2; mismo conf/ que ALX/pipeline/conf salvo paths.yml).
+  - v0_provisional: reproduce la publicación v1 (revisión 2, Excel 52e7547f…) con el respaldo
+    ALX/entrega/historico/v1_2026-10-21, insumos de S3 y el alx.yml v1 (conf de la corrida A2_v1). Solo `generar`:
+    `subir` se niega a escribir en ese prefijo.
 
 Los contratos OpenAPI de ALX/consumo-pronosticos/contratos (entregados por el arquitecto) son la especificación
 DOMINANTE de las vistas api/: esquema y semántica. Las tablas/ siguen siendo copia fiel de output_api.
 
-Lee (solo lectura):
-  - ALX/entrega/output_api/  (predicciones, recomendaciones, alertas, métricas, backtest, silenciosos)
-  - ALX/entrega/POC_Efectivo_PRAGMA.xlsx hoja 03 (solo para comprobar que las métricas coinciden)
-  - s3://poc-daas-bancolombia-777937796305 (perfil alx-mx, a memoria): maestros interim/cp_historico e
+Lee (solo lectura), según la versión:
+  - <fuente>/  (predicciones, recomendaciones, alertas, métricas, backtest, silenciosos de output_api)
+  - <excel> hoja 03 (solo para comprobar que las métricas coinciden; en v2 además se copia a anexo_d/)
+  - insumos (a memoria, con la capa storage del pipeline y DAAS_CONF de la versión): maestros interim/cp_historico e
     interim/oficinas (ciudad), processed/ (insumos de la simulación M1-M3) y processed/m6_fondos (disponibles).
 La lógica del pipeline se IMPORTA de ALX/pipeline/src/daas (simulación M1-M3, corrección de disponibles M6,
 fórmulas de métricas); no se edita ni se reentrena nada.
@@ -19,13 +25,22 @@ Escribe, fuera de Drive:
     api/flujo_b/... flujo_c/... flujo_d/... flujo_e/...   vistas JSON con la forma de los contratos OpenAPI
     validacion/validacion_openapi.json  errores de esquema (jsonschema 2020-12) y discrepancias semánticas
     validacion/verificaciones.json      comprobaciones de trazabilidad (simulación, métricas, diaCruce, disponibles)
+    anexo_d/POC_Efectivo_PRAGMA_v2.xlsx copia del Excel de la entrega (solo v2; incluida en el manifest)
 
 Uso (desde /tmp; ver README.md):
-    python publicar.py generar  <salida>
+    python publicar.py generar   <salida> [--version v2|v0_provisional]
     python publicar.py verificar <directorio_descargado_de_s3>
+    python publicar.py subir     <salida> --dry-run      lista claves, bytes y sha256; no escribe
+    python publicar.py subir     <salida>                sube a output/pronosticos/v2/ + version_vigente.json
+
+Salvaguardas de `subir`: solo escribe claves bajo output/pronosticos/v2/ y la clave única
+output/pronosticos/version_vigente.json; exige que output/pronosticos/v2/ esté vacío (sin objetos ni versiones) y
+que version_vigente.json no exista; nunca borra.
 """
 from __future__ import annotations
 
+import argparse
+import base64
 import datetime as dt
 import hashlib
 import json
@@ -43,25 +58,75 @@ import pyarrow.parquet as pq
 import yaml
 
 ALX = Path(__file__).resolve().parents[1]
-FUENTE = ALX / "entrega" / "output_api"
-EXCEL = ALX / "entrega" / "POC_Efectivo_PRAGMA.xlsx"
-EXCEL_SHA_PREFIJO = "52e7547fce59105a"
 CONTRATOS = ALX / "consumo-pronosticos" / "contratos"
 BANDAS_YML = ALX / "lab" / "conf" / "bandas.yml"
+CORRIDAS = Path.home() / ".cache" / "poc-daas" / "corrida_entrega_v2"
 
 BUCKET = "poc-daas-bancolombia-777937796305"
 PERFIL_AWS = "alx-mx"
-# Insumos a memoria desde S3 (la capa storage del pipeline resuelve daas:// con estas variables).
-os.environ.setdefault("AWS_PROFILE", PERFIL_AWS)
-os.environ.setdefault("DAAS_SCHEME", "s3")
-os.environ.setdefault("DAAS_S3_BUCKET", BUCKET)
+RAIZ_PRONOSTICOS = "output/pronosticos/"
+# Salvaguarda (a): `subir` solo escribe bajo este prefijo y en esta clave única. Nada más.
+PREFIJO_ESCRITURA = "output/pronosticos/v2/"
+CLAVE_VIGENTE = "output/pronosticos/version_vigente.json"
 
-VERSION = "v0_provisional"
-REVISION = 2
-DESTINO_S3 = f"s3://{BUCKET}/output/pronosticos/v0_provisional/"
-NOTA = ("Estructura PROVISIONAL, revisión 2 (22-oct-2026): las vistas api/ cumplen los contratos OpenAPI del "
-        "arquitecto (consumo-pronosticos, especificación dominante); las tablas/ son copia fiel de output_api. "
-        "Se reemplazará cuando el arquitecto entregue la especificación de almacenamiento en S3.")
+# Parámetros por versión publicada. v0_provisional reproduce la publicación v1 (revisión 2, 22-oct-2026).
+PUBLICACIONES = {
+    "v0_provisional": {
+        "revision": 2,
+        "entrega": "v1",
+        "fuente": ALX / "entrega" / "historico" / "v1_2026-10-21" / "output_api",
+        "excel": ALX / "entrega" / "historico" / "v1_2026-10-21" / "POC_Efectivo_PRAGMA.xlsx",
+        "excel_sha256": "52e7547fce59105a24b0b0714aed9b0a18979804cec4fa9f1d03dc3cabde4688",
+        "insumos": "s3",  # la publicación v1 leyó las capas del bucket (perfil alx-mx)
+        "daas_conf": CORRIDAS / "A2_v1" / "conf",  # conf vigente + alx.yml v1 (sha256 e841aca2…6832)
+        "anexo_d": None,  # el anexo_d/POC_Efectivo_PRAGMA_v1.xlsx de v0_provisional se subió aparte (24-oct)
+        "nota": ("Estructura PROVISIONAL, revisión 2 (22-oct-2026): las vistas api/ cumplen los contratos OpenAPI del "
+                 "arquitecto (consumo-pronosticos, especificación dominante); las tablas/ son copia fiel de "
+                 "output_api. Se reemplazará cuando el arquitecto entregue la especificación de almacenamiento en "
+                 "S3."),
+    },
+    "v2": {
+        "revision": 1,
+        "entrega": "v2",
+        "fuente": ALX / "entrega" / "output_api",
+        "excel": ALX / "entrega" / "POC_Efectivo_PRAGMA.xlsx",
+        "excel_sha256": "167a52e41f00cfa3c3bb202a51743d4182e7d9664a953927ccb4ea00aa2b9461",
+        "insumos": "local",  # capas de la corrida que generó la entrega v2 (no las del bucket)
+        "daas_conf": CORRIDAS / "B2_v2" / "conf",  # = ALX/pipeline/conf (alx.yml v2) salvo paths.yml -> B2_v2/data
+        "anexo_d": "POC_Efectivo_PRAGMA_v2.xlsx",
+        "nota": ("Entrega v2 (26-oct-2026, Excel 167a52e4…): misma estructura que v0_provisional revisión 2; las "
+                 "vistas api/ cumplen los contratos OpenAPI del arquitecto (consumo-pronosticos, especificación "
+                 "dominante); las tablas/ son copia fiel de output_api v2. Estructura aún provisional hasta la "
+                 "especificación de almacenamiento en S3 del arquitecto."),
+    },
+}
+VERSION_POR_DEFECTO = "v2"
+
+# Variables de la versión activa (las fija configurar()).
+VERSION = REVISION = DESTINO_S3 = NOTA = FUENTE = EXCEL = EXCEL_SHA256 = None
+PUB: dict = {}
+
+
+def configurar(version: str) -> None:
+    """Fija la versión activa y el entorno de la capa storage del pipeline (antes de importar daas)."""
+    global VERSION, REVISION, DESTINO_S3, NOTA, FUENTE, EXCEL, EXCEL_SHA256, PUB
+    if version not in PUBLICACIONES:
+        raise SystemExit(f"Versión desconocida: {version} (opciones: {sorted(PUBLICACIONES)})")
+    PUB = PUBLICACIONES[version]
+    VERSION, REVISION, NOTA = version, PUB["revision"], PUB["nota"]
+    DESTINO_S3 = f"s3://{BUCKET}/{RAIZ_PRONOSTICOS}{version}/"
+    FUENTE, EXCEL, EXCEL_SHA256 = PUB["fuente"], PUB["excel"], PUB["excel_sha256"]
+    os.environ["AWS_PROFILE"] = PERFIL_AWS
+    os.environ["DAAS_CONF"] = str(PUB["daas_conf"])
+    if PUB["insumos"] == "s3":
+        os.environ["DAAS_SCHEME"] = "s3"
+        os.environ["DAAS_S3_BUCKET"] = BUCKET
+    else:
+        os.environ["DAAS_SCHEME"] = "local"
+        os.environ.pop("DAAS_S3_BUCKET", None)
+
+
+configurar(os.environ.get("PUBLICAR_VERSION", VERSION_POR_DEFECTO))
 
 # Convenciones transversales del handoff (README-handoff-datos.md §3); NO salen del pipeline.
 CORRIDA = "0007"
@@ -305,6 +370,13 @@ def simular_m1_m3(pred: pd.DataFrame) -> tuple[dict[str, pd.DataFrame], dict[str
             hist.pivot(index="fecha", columns="cod_sucursal", values="salidas").sort_index(),
             pd.Series(caps).reindex(branches).rename_axis("cod_sucursal"),
             float(c3["m3"]["umbral_agotamiento"]), pol)
+    # SUP-43 (entrega v2): monto mínimo de recolección por sucursal, igual que run_u3._process_m3; con el
+    # interruptor apagado (alx.yml v1) no hay mínimo y la simulación es la de la v1.
+    from daas import alx
+    from daas.modules.branches_m3.policy import min_collection_factor
+    from daas.pipeline.run_u3 import _min_collection_by_branch
+    con_minimo = alx.interruptor("monto_minimo_recoleccion")
+    minimos = _min_collection_by_branch(branches, min_collection_factor(pol)) if con_minimo else {}
     pm = pred[pred.modelo == "m3"]
     yhat = {o: pm[pm.objetivo == o].pivot(index="fecha", columns="cod_cajero", values="yhat").sort_index()
             for o in ("entradas", "salidas")}
@@ -316,6 +388,8 @@ def simular_m1_m3(pred: pd.DataFrame) -> tuple[dict[str, pd.DataFrame], dict[str
         if params is not None and pd.notna(params.loc[code, "reserva"]):
             pair = {k: params.loc[code, k] for k in ("reserva", "objetivo", "techo")}
             pair["usa_pronostico"] = bool(params.loc[code, "usa_pronostico"])
+            if con_minimo:
+                pair["monto_min_recoleccion"] = minimos.get(str(code))
         partes.append(simulate_balance_m3(h, branch_max_capacity=float(caps.get(code, float("nan"))), params=c3,
                                           code_branch=code, policy=pair))
     sims["m3"] = pd.concat(partes, ignore_index=True).rename(columns={"cod_sucursal": "cod_cajero"})
@@ -829,10 +903,23 @@ def info_insumos_s3() -> dict:
     return out
 
 
+def info_insumos_locales() -> dict:
+    """Insumos de la corrida local de la versión (v2: B2_v2/data), resueltos con la capa storage del pipeline."""
+    from daas.io import storage
+    out = {}
+    for k in INSUMOS_S3:
+        uri = storage.resolve_uri(f"daas://{k}")
+        p = Path(uri.removeprefix("file://"))
+        if not uri.startswith("file://") or not p.is_file():
+            raise SystemExit(f"Insumo local no encontrado: {uri}")
+        out[uri] = {"sha256": sha256(p), "bytes": p.stat().st_size}
+    return out
+
+
 def generar(salida: Path) -> dict:
     excel_sha = sha256(EXCEL)
-    if not excel_sha.startswith(EXCEL_SHA_PREFIJO):
-        raise SystemExit(f"El Excel no es el vigente: {excel_sha}")
+    if excel_sha != EXCEL_SHA256:
+        raise SystemExit(f"El Excel de {VERSION} no es el esperado: {excel_sha} (se esperaba {EXCEL_SHA256})")
     dfs = leer_fuente()
     ciudades = ciudades_maestro()
     sims, inactivos = simular_m1_m3(dfs["predicciones"])
@@ -894,6 +981,11 @@ def generar(salida: Path) -> dict:
                                    .value_counts().to_dict()} for m, s in sims.items()},
     }
     escribir_json(salida / "validacion" / "verificaciones.json", verificaciones)
+    if PUB["anexo_d"]:
+        (salida / "anexo_d").mkdir()
+        shutil.copyfile(EXCEL, salida / "anexo_d" / PUB["anexo_d"])
+        if sha256(salida / "anexo_d" / PUB["anexo_d"]) != EXCEL_SHA256:
+            raise SystemExit("La copia del Excel en anexo_d/ no coincide con el original")
 
     bandas = yaml.safe_load(BANDAS_YML.read_text(encoding="utf-8"))
     archivos = []
@@ -912,12 +1004,18 @@ def generar(salida: Path) -> dict:
         "nota": NOTA,
         "destino_s3": DESTINO_S3,
         "fuente": {
-            "ruta": "ALX/entrega/output_api",
+            "entrega": PUB["entrega"],
+            "ruta": FUENTE.relative_to(ALX.parent).as_posix(),
             "archivos": {f.name: sha256(f) for f in sorted(FUENTE.glob("*.parquet"))},
-            "excel": {"ruta": "ALX/entrega/POC_Efectivo_PRAGMA.xlsx", "sha256": excel_sha,
-                      "nota": "Referencia de trazabilidad: el Excel no se publica ni se modifica; la hoja 03 se "
-                              "usa para comprobar las métricas."},
-            "insumos_s3": info_insumos_s3(),
+            "excel": {"ruta": EXCEL.relative_to(ALX.parent).as_posix(), "sha256": excel_sha,
+                      "nota": ("Referencia de trazabilidad: el Excel no se publica ni se modifica; la hoja 03 se "
+                               "usa para comprobar las métricas.") if not PUB["anexo_d"] else
+                              (f"La hoja 03 se usa para comprobar las métricas; copia sin cambios en "
+                               f"anexo_d/{PUB['anexo_d']} (mismo sha256).")},
+            **({"insumos_s3": info_insumos_s3()} if PUB["insumos"] == "s3" else
+               {"insumos_locales": info_insumos_locales(),
+                "conf": {"daas_conf": str(PUB["daas_conf"]),
+                         "alx_yml_sha256": sha256(Path(PUB["daas_conf"]) / "alx.yml")}}),
             "logica_importada": ["daas.modules.atm_m1_m2.balance", "daas.modules.branches_m3.balance/policy",
                                  "daas.decision.optimizer/alerts", "daas.modules.funds_m6.dataset/"
                                  "correccion_disponibles", "daas.forecasting.metrics"],
@@ -970,15 +1068,127 @@ def verificar(directorio: Path) -> list[str]:
     return errores
 
 
+# -------------------------------------------------------------------------------------------------- subir
+TIPO_CONTENIDO = {".json": "application/json", ".parquet": "application/vnd.apache.parquet",
+                  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+
+
+def clave_permitida(clave: str) -> bool:
+    """Salvaguarda (a): True solo para claves bajo output/pronosticos/v2/ o la clave única version_vigente.json."""
+    if clave == CLAVE_VIGENTE:
+        return True
+    partes = clave.split("/")
+    return (clave.startswith(PREFIJO_ESCRITURA) and len(clave) > len(PREFIJO_ESCRITURA)
+            and "" not in partes and "." not in partes and ".." not in partes)
+
+
+def version_vigente(man: dict, man_sha: str, fecha: str) -> dict:
+    """Contenido de output/pronosticos/version_vigente.json (puntero a la versión que deben leer los consumidores)."""
+    ant = PUBLICACIONES["v0_provisional"]
+    return {
+        "descripcion": ("Puntero a la versión vigente de los pronósticos publicados. Leer 'prefijo' y su "
+                        "manifest.json; las versiones anteriores se conservan sin cambios en su propio prefijo."),
+        "version_vigente": man["version"],
+        "revision": man["revision"],
+        "entrega": man["fuente"]["entrega"],
+        "prefijo": man["destino_s3"],
+        "manifest": f"{man['destino_s3']}manifest.json",
+        "manifest_sha256": man_sha,
+        "n_objetos": man["n_archivos"] + 1,
+        "fecha_publicacion": fecha,
+        "fecha_generacion": man["fecha_generacion"],
+        "excel": {"sha256": man["fuente"]["excel"]["sha256"],
+                  "copia": f"{man['destino_s3']}anexo_d/{PUB['anexo_d']}" if PUB["anexo_d"] else None},
+        "version_anterior": {
+            "version": "v0_provisional", "revision": ant["revision"], "entrega": ant["entrega"],
+            "prefijo": f"s3://{BUCKET}/{RAIZ_PRONOSTICOS}v0_provisional/",
+            "excel_sha256": ant["excel_sha256"],
+            "estado": "reemplazada por la versión vigente; se conserva sin cambios (no se borra ni se sobrescribe)",
+        },
+    }
+
+
+def subir(salida: Path, dry_run: bool) -> int:
+    """Sube <salida> a output/pronosticos/<versión>/ y escribe version_vigente.json, con las salvaguardas (a)-(c)."""
+    import boto3
+    man_path = salida / "manifest.json"
+    man = json.loads(man_path.read_text(encoding="utf-8"))
+    if man["version"] != VERSION or man["destino_s3"] != DESTINO_S3:
+        raise SystemExit(f"El manifest es de {man['version']} ({man['destino_s3']}), no de {VERSION}")
+    errs = verificar(salida)
+    if errs:
+        raise SystemExit("La salida local no coincide con su manifest:\n" + "\n".join(errs))
+    prefijo = DESTINO_S3.removeprefix(f"s3://{BUCKET}/")
+    rutas = [a["ruta"] for a in man["archivos"]] + ["manifest.json"]  # el manifest se sube al final
+    plan = [(salida / r, prefijo + r) for r in rutas]
+    fuera = [k for _, k in plan if not clave_permitida(k)]
+    if fuera or not clave_permitida(CLAVE_VIGENTE):
+        raise SystemExit(f"Salvaguarda (a): {len(fuera)} claves fuera de {PREFIJO_ESCRITURA}, p. ej. {fuera[:3]}")
+
+    s3 = boto3.Session(profile_name=PERFIL_AWS).client("s3")
+    # Salvaguarda (b): el prefijo destino debe estar vacío (ni objetos ni versiones ni delete markers) y
+    # version_vigente.json no debe existir: nunca se sobrescribe ni se borra nada.
+    ocupado = []
+    for pref in (prefijo, CLAVE_VIGENTE):
+        for pg in s3.get_paginator("list_object_versions").paginate(Bucket=BUCKET, Prefix=pref):
+            ocupado += [v["Key"] for v in pg.get("Versions", []) + pg.get("DeleteMarkers", [])
+                        if pref == prefijo or v["Key"] == CLAVE_VIGENTE]
+    print(f"{'DRY-RUN' if dry_run else 'SUBIDA'} {VERSION} -> s3://{BUCKET}/{prefijo}")
+    print(f"comprobación previa: {len(ocupado)} objetos/versiones existentes en {prefijo} o {CLAVE_VIGENTE}")
+    if ocupado:
+        raise SystemExit(f"Salvaguarda (b): el destino no está vacío ({len(ocupado)}), p. ej. {ocupado[:3]}; "
+                         "no se escribe nada")
+
+    print("clave\tbytes\tsha256")
+    for p, k in plan:
+        print(f"{k}\t{p.stat().st_size}\t{sha256(p)}")
+    total = sum(p.stat().st_size for p, _ in plan)
+    fecha = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    vig = (json.dumps(version_vigente(man, sha256(man_path), fecha), ensure_ascii=False, indent=1) + "\n").encode()
+    print(f"{CLAVE_VIGENTE}\t{len(vig)}\t{hashlib.sha256(vig).hexdigest()}")
+    print(f"total: {len(plan)} objetos en {prefijo} ({total} bytes) + 1 ({CLAVE_VIGENTE})")
+    if dry_run:
+        print("version_vigente.json (fecha_publicacion se fija al subir):")
+        print(vig.decode())
+        return 0
+
+    def poner(clave: str, cuerpo: bytes, tipo: str) -> None:
+        if not clave_permitida(clave):  # salvaguarda (a), también en cada escritura
+            raise SystemExit(f"Salvaguarda (a): clave no permitida {clave}")
+        digest = hashlib.sha256(cuerpo).digest()
+        s3.put_object(Bucket=BUCKET, Key=clave, Body=cuerpo, ContentType=tipo,
+                      ChecksumSHA256=base64.b64encode(digest).decode(),  # S3 rechaza el objeto si no coincide
+                      Metadata={"sha256": digest.hex()})
+
+    for p, k in plan:
+        poner(k, p.read_bytes(), TIPO_CONTENIDO.get(p.suffix, "application/octet-stream"))
+    poner(CLAVE_VIGENTE, vig, "application/json")
+    subidos = [o["Key"] for pg in s3.get_paginator("list_objects_v2").paginate(Bucket=BUCKET, Prefix=prefijo)
+               for o in pg.get("Contents", [])]
+    faltan = sorted({k for _, k in plan} - set(subidos))
+    print(f"subidos: {len(subidos)} objetos en {prefijo} + {CLAVE_VIGENTE}; faltan {len(faltan)}")
+    print(vig.decode())
+    return 1 if faltan or len(subidos) != len(plan) else 0
+
+
 if __name__ == "__main__":
-    accion, ruta = sys.argv[1], Path(sys.argv[2])
-    if accion == "generar":
-        m = generar(ruta)
+    ap = argparse.ArgumentParser(description="Publicación de pronósticos en S3 (ver README.md)")
+    ap.add_argument("accion", choices=["generar", "verificar", "subir"])
+    ap.add_argument("ruta", type=Path)
+    ap.add_argument("--version", default=os.environ.get("PUBLICAR_VERSION", VERSION_POR_DEFECTO),
+                    choices=sorted(PUBLICACIONES))
+    ap.add_argument("--dry-run", action="store_true", help="subir: solo lista claves, bytes y sha256")
+    args = ap.parse_args()
+    configurar(args.version)
+    if args.accion == "generar":
+        m = generar(args.ruta)
         print(json.dumps({k: m[k] for k in ("version", "revision", "n_archivos", "tablas", "validacion_openapi")},
                          indent=1, ensure_ascii=False))
-    elif accion == "verificar":
-        errs = verificar(ruta)
+    elif args.accion == "verificar":
+        errs = verificar(args.ruta)
         print("\n".join(errs) if errs else "OK: todos los archivos coinciden en bytes y sha256")
         sys.exit(1 if errs else 0)
     else:
-        raise SystemExit("uso: publicar.py generar|verificar <ruta>")
+        if VERSION != "v2":
+            raise SystemExit(f"Salvaguarda (a): subir solo escribe en {PREFIJO_ESCRITURA} (versión v2)")
+        sys.exit(subir(args.ruta, args.dry_run))

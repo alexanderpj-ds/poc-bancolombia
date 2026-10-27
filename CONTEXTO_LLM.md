@@ -6,6 +6,10 @@
 
 **Fecha de corte de este documento:** 23-oct-2026. La entrega de la PoC es el 26-oct-2026.
 
+**Actualizado el 25-oct-2026:** se incorporan el EDA Box-Jenkins v2 (`ALX/eda/03_eda_box_jenkins_v2.ipynb`, 24-oct), que pasa a ser el EDA vigente y deja superado al notebook 02 (§6.2), y el EDA dedicado de M5 (`ALX/eda/04_eda_m5.ipynb`, 25-oct; §6.5).
+
+**Actualizado el 26-oct-2026 (entregable v2):** el Excel y los contratos de `entrega/` son la **v2** (sha256 `167a52e4…`; cambios en `entrega/CAMBIOS_v2.md`), el registro de supuestos `pipeline/docs/supuestos.md` (SUP-01..SUP-53) entra al repo como **versión final**, y se corrige la afirmación anterior de que los Anexos B y C no se recibieron (§1). La v2 se publicó en S3 el mismo día en `output/pronosticos/v2/`, con el puntero `output/pronosticos/version_vigente.json`; `v0_provisional/` queda como la v1 (§7). Se actualizaron §1, §2.3, §3.5, §4.6, §4.7, §5, §6.7, §7, §8, §9, §10, §11, §12 y §13. Las demás cifras (pronósticos, métricas predictivas, champions, bandas) no cambian en la v2.
+
 **Convenciones.**
 - Rutas de archivo sin prefijo (p. ej. `pipeline/conf/alx.yml`) = rutas **dentro de este repo** (existen; mapa completo en §10). Los prefijos de bucket (`raw/`, `interim/`, `output/api/`, …) se refieren a S3 o a la carpeta de trabajo de una corrida, no al repo.
 - `ALX/...` = carpeta de trabajo original en el Google Drive del proyecto (`Mi unidad/PoC-Bancolombia/ALX/`). **No está en el repo.** Ahí está todo el material de soporte (experimentos, notebooks, informes). Si necesitas algo de ahí, pide acceso al Drive del proyecto.
@@ -22,7 +26,7 @@
 4. Modelos M1–M6, métricas, champions, regla de adopción, bandas y M6
 5. Supuestos SUP-xx vigentes
 6. Experimentos y resultados, incluidos los no adoptados
-7. Publicación en S3 (`v0_provisional`)
+7. Publicación en S3 (`v2` vigente, `v0_provisional` = v1)
 8. Reproducibilidad: cómo correr de punta a punta y qué diferencias esperar
 9. Acceso a AWS
 10. Mapa del repo archivo por archivo
@@ -52,24 +56,26 @@
 | Pesos (§12) | Analítico 40 %, backend 20 %, frontend 15 %, calidad técnica 10 %, experiencia de usuario 10 %, sustentación 5 % |
 | Sustentación (§14) | Presencial en Medellín, con líderes técnico, analítico y funcional |
 
-**Anexos del pliego** (§9.1): A metadatos de insumos, B reglas de negocio RN-xx (Word), C días sin registro y su tratamiento (Word), **D plantilla del Excel de entrega**, **E parámetros de costos**. **Nunca se recibieron A, B ni C**: las reglas RN-xx se conocen por el código y la documentación; los 27 días del Anexo C están en la configuración (`pipeline/conf/dq_rules.yml`). Los **originales de D y E** los entregó el banco el 21-oct-2026 y están versionados en `datos/raiz/anexos/Anexos/` (sha256 del D `a247fae77dcf5779e6e36e732af447945faa32a670555a03c0962237992c20ec`, del E `caaa399cbd21459303d6b738f949b8f52b89801104ac5bb3a392a4fb77097c97`; SUP-40). No existen en S3.
+**Anexos del pliego** (§9.1): A metadatos de insumos (`Anexo_A_Metadatos_Insumos.xlsx`), B reglas de negocio RN-xx (`Anexo_B_Reglas_de_Negocio.docx`), C observaciones de calidad, con los días sin registro y su tratamiento (`Anexo_C_Observaciones de calidad.docx`), **D plantilla del Excel de entrega**, **E parámetros de costos**. **[Contradicción resuelta]** Versiones anteriores de este documento decían que A, B y C nunca se recibieron. **Es falso: los cinco anexos sí se recibieron** y están en `~/Desktop/datos-anexo-poc-bancolombia/` del equipo de Alexander Peláez (lo encontró la auditoría del pliego del 26-oct, `Mi unidad/PoC-Bancolombia/.agents/tasks/auditoria-pliego/auditoria.md` §0). Hasta la v1 las RN-xx se reconstruyeron desde el código y la documentación de Santiago; la v2 se contrastó contra el texto literal de B y C, y el registro de supuestos cita ese texto. Lo que **no** se recibió son dos insumos que el Anexo A lista para M6: `Historico BANREP.xlsx` e `Historico Traslados.xlsx` (SUP-46). Los 27 días del Anexo C están en la configuración (`pipeline/conf/dq_rules.yml`). El repo versiona solo D y E porque la corrida no lee A, B ni C: los **originales de D y E** (entregados por el banco el 21-oct-2026) están en `datos/raiz/anexos/Anexos/` (sha256 del D `a247fae77dcf5779e6e36e732af447945faa32a670555a03c0962237992c20ec`, del E `caaa399cbd21459303d6b738f949b8f52b89801104ac5bb3a392a4fb77097c97`; SUP-40). No existen en S3.
 
-**Entregable principal: el Excel `entrega/POC_Efectivo_PRAGMA.xlsx`**, sha256 **`52e7547fce59105a24b0b0714aed9b0a18979804cec4fa9f1d03dc3cabde4688`** (917.601 bytes, generado el 21-oct-2026 sobre la plantilla original del Anexo D). El pliego exige un único Excel `POC_Efectivo_<NOMBRE_PROVEEDOR>.xlsx` con 5 hojas obligatorias y conservar sin modificar las informativas. Contenido de las 6 hojas de este archivo (`ALX/analisis_repo_santiago.md` §12.4):
+**Indicación del banco sobre la información faltante:** lo que el banco no suministró debe suplirse con supuestos debidamente documentados. Por eso cada SUP del registro final declara qué no entregó el banco, qué se asume, por qué (con cita literal), su efecto, la alternativa y dónde se aplica (§5), y la sección "Preguntas abiertas" del registro pasó a "Preguntas convertidas en supuestos": no se esperan respuestas del banco.
+
+**Entregable principal: el Excel `entrega/POC_Efectivo_PRAGMA.xlsx` v2**, sha256 **`167a52e41f00cfa3c3bb202a51743d4182e7d9664a953927ccb4ea00aa2b9461`** (929.096 bytes, generado el 26-oct-2026 sobre la plantilla original del Anexo D). Reemplaza a la v1 del 21-oct (sha256 `52e7547fce59105a24b0b0714aed9b0a18979804cec4fa9f1d03dc3cabde4688`, 917.601 bytes), que queda en el historial de git (commit `955115d`) y en `ALX/entrega/historico/v1_2026-10-21/`. Qué cambió, por qué y cuánto: `entrega/CAMBIOS_v2.md`. **Los pronósticos (hoja 01) y las métricas predictivas (hoja 03) son los mismos de la v1**; cambian el plan operativo, M6, los costos y los textos. El pliego exige un único Excel `POC_Efectivo_<NOMBRE_PROVEEDOR>.xlsx` con 5 hojas obligatorias y conservar sin modificar las informativas. Contenido de las 6 hojas de la v2 (v1 entre paréntesis cuando cambia):
 
 | Hoja | Filas | Contenido |
 |---|---:|---|
-| `01_Predicciones` | 9.690 | M1 435 × 15; M2 56 × 15 × 2 objetivos; M3 44 × 15 × 2; M4 5 × 15; M5 6 × 15. Del 1 al 15-sep, 0 nulos, 0 duplicados |
-| `02_Plan_Operativo` | 2.592 | M1 1.349 provisiones + 53 sin acción; M2 28 provisiones + 719 recolecciones + 3 sin acción; M3 2 provisiones + 432 recolecciones + 6 sin acción. Con cupo, saldo antes/después, ocupación y costo |
-| `03_Metricas_Desarrollo` | 105 | Métricas del **backtest propio 17–31 ago** (origen 16-ago): Global, Cali, Pasto, Ipiales, Semana 1 (17–23) y Semana 2 (24–31); de M6 solo métricas operativas y de costo |
-| `04_Descripcion_Solucion` | 8 | Una fila por modelo × objetivo, con enfoque, variables, validación, limitaciones y supuestos SUP-xx |
-| `05_M6_Fondos` | 565 | 6 fondos × 6 denominaciones × 15 días más filas extra de acciones; sin venta, BanRep ni intercambio en días no hábiles |
+| `01_Predicciones` | 9.690 | M1 435 × 15; M2 56 × 15 × 2 objetivos; M3 44 × 15 × 2; M4 5 × 15; M5 6 × 15. Del 1 al 15-sep, 0 nulos, 0 duplicados. Idéntica a la v1 |
+| `02_Plan_Operativo` | 2.585 (2.592) | M1 1.349 provisiones + 53 sin acción; M2 28 provisiones + 719 recolecciones + 3 sin acción; M3 2 provisiones + 425 recolecciones (432; 7 omitidas por SUP-43) + 6 sin acción. Con cupo, saldo antes/después, ocupación y costo. `nivel_riesgo` medido antes de la acción (SUP-42): 1.098 alto, 1.216 medio, 271 bajo (v1: 2.592 bajo) |
+| `03_Metricas_Desarrollo` | 105 | Métricas del **backtest propio 17–31 ago** (origen 16-ago): Global, Cali, Pasto, Ipiales, Semana 1 (17–23) y Semana 2 (24–31); de M6 solo métricas operativas y de costo. Las 91 predictivas iguales a la v1; cambian 4 valores de costo y los textos `comentarios` (49) y `metodologia_validacion` (105) |
+| `04_Descripcion_Solucion` | 8 | Una fila por modelo × objetivo, con enfoque, variables, validación, limitaciones y supuestos SUP-xx citados por número y título. En la v2 las 80 celdas de texto se reescribieron para el evaluador (interruptor `hoja04_v2`) |
+| `05_M6_Fondos` | 566 (565) | 6 fondos × 6 denominaciones × 15 días más filas de acciones: 198 de traslado (99 traslados), 148 ventas, 4 retiros BanRep, 216 sin acción; sin venta, BanRep ni intercambio en días no hábiles |
 | `06_Diccionario_Campos` | 20 | Informativa, intacta |
 
-`validate_xlsx.validate_anexo_d` da 0 errores. **Salvedad:** el pliego menciona además las hojas informativas `00_Instrucciones`, `GUIA_Descripcion_Solucion` y `07_Catalogo_Ejemplos`, pero la plantilla recibida no las trae; no se crearon porque el pliego prohíbe hojas adicionales (pregunta abierta P25, SUP-40).
+`validate_xlsx.validate_anexo_d` da 0 errores (v1 y v2). **Salvedad:** el pliego menciona además las hojas informativas `00_Instrucciones`, `GUIA_Descripcion_Solucion` y `07_Catalogo_Ejemplos`, pero la plantilla recibida no las trae; no se crearon porque el pliego prohíbe hojas adicionales (pregunta abierta P25, SUP-40).
 
-**Contratos de salida del entregable:** `entrega/output_api/` (6 parquet con su `_schemas/*.json`): `predicciones` 10.230 filas (9.690 PROYECTADO de M1–M5 + 540 SIMULADO de M6), `recomendaciones` 2.923, `alertas` 2.590, `metricas` 46, `backtest` 15.804, `silenciosos` 15. Las bandas del 90 % solo están aquí (la plantilla no tiene columna para ellas).
+**Contratos de salida del entregable v2:** `entrega/output_api/` (6 parquet con su `_schemas/*.json`): `predicciones` 10.230 filas (9.690 PROYECTADO de M1–M5 + 540 SIMULADO de M6), `recomendaciones` 2.897 (v1 2.923), `alertas` 2.547 (v1 2.590; solo cambian las de M6, 293 → 250), `metricas` 50 (v1 46; nuevas `recoleccion_omitida_monto`, `cajeros_sucursal_mapeados`, `flujo_sin_fondo` y `costo_traslado_tarifa_destino`), `backtest` 15.804, `silenciosos` 15. `silenciosos` y los `_schemas` son idénticos byte a byte a la v1. Las bandas del 90 % solo están aquí (la plantilla no tiene columna para ellas).
 
-**Entregable secundario:** la publicación provisional en S3 `s3://poc-daas-bancolombia-777937796305/output/pronosticos/v0_provisional/` (revisión 2, 248 objetos), con la forma de los contratos OpenAPI del arquitecto (§7).
+**Entregable secundario:** la publicación en S3 con la forma de los contratos OpenAPI del arquitecto (§7). **Vigente: `s3://poc-daas-bancolombia-777937796305/output/pronosticos/v2/`** (entrega v2, 26-oct-2026, 249 objetos), indicada por el puntero `output/pronosticos/version_vigente.json`. `output/pronosticos/v0_provisional/` (revisión 2 del 22-oct) es la publicación de la v1 y se conserva sin cambios.
 
 ---
 
@@ -91,9 +97,9 @@ Hay tres líneas de trabajo, en este orden. Este repo sale de la tercera.
 - Aportes: un **laboratorio de evaluación** (`lab/`) con un **arnés de backtest rodante** (16 orígenes de selección + 2 bloqueados + chequeo), una **regla de adopción** estadística, **bandas conformales** por tramo de horizonte, explicabilidad (permutación y SHAP), simuladores de políticas y una landing React (no Angular). Modelos adoptados por Santiago, que son la **referencia** contra la que se mide todo después: M1 y M2 `combo_gbm_prophetcal` (promedio de un boosting global con calendario + Prophet con calendario), M3 `gbm_cal` (boosting global con calendario), M4 y M5 `combo_perfil_gbml1` (perfil día de semana × factor del día del mes + boosting con pérdida L1).
 - Ojo: el "LightGBM" del README de Santiago es en realidad `HistGradientBoostingRegressor` de scikit-learn (HGB). Y el campo `datos: "synthetic-data"` de sus registros **no significa datos sintéticos**: es el nombre de la carpeta raíz de datos; sus corridas son sobre datos reales (se comprobó con paridad exacta, §6.1).
 - Su Excel (`ALX/entrega/referencia_santiago/POC_Efectivo_PRAGMA.xlsx`, sha256 `bc7d5189ebe0f15a670b5a03d23238ae6b0fc5b08f21b59aa29912e1dc8333f5`) es la referencia de comparación del entregable. WAPE de su hoja 03 (chequeo 17–31 ago): M1 0,2551; M2 `pagado` 0,3652; M2 `cash_in` 0,3868; M3 0,4219 / 0,4577; M4 0,3196; M5 0,5668.
-- **Qué tomó ALX de Santiago:** todo el pipeline (`pipeline/`), el laboratorio (`lab/`), el arnés y su regla, el conformal, los supuestos SUP-01..SUP-23 y el registro `ALX/pipeline/docs/supuestos.md` (que ALX continuó desde SUP-24), y sus modelos como referencia. Los cambios de ALX sobre el pipeline van **detrás de interruptores** (`pipeline/conf/alx.yml`): con todos apagados, el pipeline reproduce el Excel de Santiago celda a celda (105/105 filas de la hoja 03; §6.8).
+- **Qué tomó ALX de Santiago:** todo el pipeline (`pipeline/`), el laboratorio (`lab/`), el arnés y su regla, el conformal, los supuestos SUP-01..SUP-23 y el registro de supuestos (hoy `pipeline/docs/supuestos.md` en este repo, que ALX continuó desde SUP-24), y sus modelos como referencia. Los cambios de ALX sobre el pipeline van **detrás de interruptores** (`pipeline/conf/alx.yml`): con todos apagados, el pipeline reproduce el Excel de Santiago celda a celda (105/105 filas de la hoja 03; §6.8).
 
-### 2.3 El trabajo de ALX (Alexander Peláez, Pragma), 8 al 23-oct-2026
+### 2.3 El trabajo de ALX (Alexander Peláez, Pragma), 8 al 26-oct-2026
 
 `ALX/` es una carpeta de trabajo en Google Drive (no es un repo git) que contiene una copia del repo de Santiago más todo lo nuevo. Los clones de los repos de Andrés (carpeta poc-daas-bancolombia del Drive) y de Santiago (carpeta repo-santiago del Drive) se mantuvieron **solo lectura**. Cronología:
 
@@ -106,6 +112,10 @@ Hay tres líneas de trabajo, en este orden. Este repo sale de la tercera.
 | 19–21-oct | Workflow de imputación: inventario de faltantes, 6 métodos, repetición del ML; correcciones de datos y medición (SUP-24..SUP-40); entregable nuevo | **Imputación no adoptada**; correcciones adoptadas; Excel `52e7547f…` |
 | 22-oct | Publicación provisional en S3 (revisiones 1 y 2), preguntas al arquitecto, resumen de avances v2, diagnóstico y plan de M5, M5 v2 | `v0_provisional` r2 (248 objetos); M5 sin cambios en la entrega |
 | 23-oct | Armado de este repo mínimo con una corrida auditada | 231 archivos (232 con este documento), sin commit |
+| 24-oct | EDA Box-Jenkins v2 de M1–M6 (`ALX/eda/03_eda_box_jenkins_v2.ipynb`), solo identificación, sin estimar modelos | EDA vigente; supera al notebook 02 (§6.2) |
+| 25-oct | EDA dedicado de M5 (`ALX/eda/04_eda_m5.ipynb`) | Causas del sesgo de M5 y recomendaciones P3–P6 sin implementar (§6.5) |
+| 26-oct | Publicación de la v2 en `output/pronosticos/v2/` y puntero `version_vigente.json`; `publicar.py` parametrizado por versión | 249 objetos, manifest `967eac4b…`; `v0_provisional/` intacta |
+| 26-oct | Auditoría del entregable contra el pliego y el texto literal de los Anexos B y C (`Mi unidad/PoC-Bancolombia/.agents/tasks/auditoria-pliego/auditoria.md`); correcciones v2 detrás de 10 interruptores (SUP-42..SUP-53 nuevos, SUP-12/14/21/22 y otros reescritos); registro propio como versión final de supuestos; actualización de este repo | **Excel v2 `167a52e4…`** (`entrega/CAMBIOS_v2.md`); pronósticos y métricas predictivas sin cambios |
 
 ### 2.4 Cómo se armó este repo (23-oct-2026)
 
@@ -120,6 +130,8 @@ El usuario pidió subir a `https://github.com/alexanderpj-ds/poc-bancolombia` (r
 7. Prioridad: tener el repo ya. Por eso **no se repitió la corrida completa desde el repo**; la evidencia de reproducibilidad es una corrida auditada sobre una copia de `ALX/` con el mismo script, datos y versiones (§8).
 
 Cómo se decidió qué entra: se corrió el pipeline completo con un hook de auditoría (`sys.addaudithook`) que registró cada archivo abierto y cada módulo cargado (187 rutas de `ALX/` leídas). Entró lo que esa corrida leyó o importó, más `publicacion_s3/publicar.py` y lo que este lee. Quedaron fuera, por no usarse nunca, `ALX/pipeline/src/daas/modules/funds_m6/recommender.py`, `ALX/pipeline/src/daas/quality/schemas.py`, `ALX/pipeline/conf/aws.yml`, `ALX/pipeline/conf/contracts/C-01..C-12.yml` y `ALX/ml/conf/`. El layout replica las rutas relativas de `ALX/` porque `ml/__init__.py`, `lab/__init__.py`, `imputacion/__init__.py`, `pipeline/corrida_entrega.sh` y `publicacion_s3/publicar.py` localizan la raíz por posición relativa: **no muevas carpetas**. Por eso dentro del código la raíz del repo se llama `ALX` (variable `ALX` en `corrida_entrega.sh` y `publicar.py`). Ningún archivo de código se modificó al copiarlo (220/220 idénticos byte a byte a `ALX/`).
+
+**Actualización v2 (26-oct-2026).** Se copiaron de `ALX/` los 19 archivos de código y configuración que tocaron las correcciones v2 (5 de `pipeline/conf/` y 14 de `pipeline/src/daas/`), el módulo nuevo `pipeline/src/daas/publish/anexo_d/sheet_04_v2.py`, el registro `pipeline/docs/supuestos.md` (lo citan el código, la configuración y la hoja 04; antes estaba solo en el Drive), el Excel y los contratos v2 y `entrega/CAMBIOS_v2.md`. Todos idénticos byte a byte a `ALX/`. No entraron: el respaldo v1 (`ALX/entrega/historico/`; git conserva la v1 en el commit `955115d`), `ALX/entrega/CONTEXTO_v2_para_Andres.md` (comunicación interna), las pruebas (`ALX/tests_alx/test_correcciones_v2.py`) ni los scripts de verificación de la v2 (`~/.cache/poc-daas/corrida_entrega_v2/scripts/`). El repo queda con 235 archivos versionados.
 
 ---
 
@@ -171,11 +183,11 @@ Los sha256 de los 19 archivos `raw/` están en `scripts/raw.sha256`. Rango y vol
 
 ### 3.5 Hallazgos de calidad y cómo se trató cada uno
 
-Ninguna corrección inventa datos: se deduplica, se convierten unidades, se excluyen subtotales o se marca como faltante. Fuentes: `CONTEXTO_CONVERSACION.md` §9, `ALX/guia_datos_bucket.md` §8 (21 problemas), `ALX/resumen_avances_v2.md` §3.4 y `ALX/pipeline/docs/supuestos.md`.
+Ninguna corrección inventa datos: se deduplica, se convierten unidades, se excluyen subtotales o se marca como faltante. Fuentes: `CONTEXTO_CONVERSACION.md` §9, `ALX/guia_datos_bucket.md` §8 (21 problemas), `ALX/resumen_avances_v2.md` §3.4, `pipeline/docs/supuestos.md` y, para las filas 18–21 (v2), la auditoría del pliego del 26-oct y `entrega/CAMBIOS_v2.md`.
 
 | # | Hallazgo | Tratamiento vigente |
 |---|---|---|
-| 1 | **Anexo C** (27 días, 14.568 cajero-días) | NaN en entrenamiento, simulación y métricas (SUP-02). Imputación evaluada y no adoptada (SUP-36) |
+| 1 | **Anexo C** (27 días, 14.568 cajero-días) | NaN en entrenamiento, simulación y métricas (SUP-02). Imputación evaluada y no adoptada (SUP-36). En la v2 la hoja 04 declara además el efecto estimado del bloque de abril, como pide el Anexo C |
 | 2 | **M6, TDV_001 con unidades mezcladas:** `valor` es cantidad de billetes hasta el 17-jul-2026 y pesos desde el 21-jul-2026 (`CALI\|` y `PASTO\|TRANSPORTADORA_001`). Sin corregir, el mínimo de M6 sale en miles de pesos y nunca detecta déficit | Se convierte a pesos lo que está en billetes, **detectado por datos** (un fondo-día está en billetes si menos del 50 % de sus filas distintas de 0 son múltiplo de la denominación): 49.212 filas. SUP-29 |
 | 3 | **M6, filas `calidad = TOTAL`** en TDV_002 (hasta el 12-ago-2026) y TDV_003 (hasta el 29-jul-2026): subtotal que duplica el saldo y los mínimos/máximos | Se excluyen 16.423 filas (16.192 igualan exactamente la suma del resto). SUP-29 |
 | 4 | **M6, 30 fondo-días con doble formato** (el `TOTAL` no iguala la suma; TDV_002 del 21 al 27-jul y 11–12-ago-2026; TDV_003 desde el 8-ene-2026) y **23 blancos** en `CALI\|TRANSPORTADORA_004\|50000` (9-jul a 11-ago-2026) | Salen de la ventana de mínimos y máximos (SUP-10) como faltantes. **Salvedad:** el reparto por denominación (SUP-09) todavía los usa (§11) |
@@ -185,14 +197,18 @@ Ninguna corrección inventa datos: se deduplica, se convierten unidades, se excl
 | 7 | **Cajeros desinstalados** 1120, 1121, 1122 y 5778 (3-ago-2026) | Pronóstico 0 los 15 días y fila `sin_accion` (regla de inactividad de Santiago). RN-07 saca de las métricas 25 cajeros de M1 y 4 de M2 (SUP-01). De 29 marcados RN-07, 23 son códigos reutilizados (SUP-06) |
 | 8 | **Valores corruptos:** monto `884s0000` (cajero 6303, 25-jul-2026) y fecha `35/06/2026` | El monto deja el cajero-día como NaN; la fecha la descarta `processed` (SUP-35) |
 | 9 | **Ceros de M3 en días hábiles de agosto de 2026:** 10-ago, 34 de 44 sucursales en 0; del 18 al 28-ago, 5 a 10 por día hábil (en julio, máximo 2) | Se conservan como cero real (dato entregado); como faltante solo se midió como sensibilidad (SUP-37). Bajan la cobertura de las bandas de M3. **Pendiente de confirmar con el banco** |
-| 10 | **Maestro de cajeros "vigente" del 8-sep-2026**, posterior al corte (392 cajeros cambiaron de cupo y 144 de administrador; `estado` siempre `Produccion`) | Las variables de contexto usan el último snapshot ≤ cada origen ("as of", SUP-28): cambia algún atributo en el 20,4 % de los cajero-orígenes de M1 |
+| 10 | **Maestro de cajeros "vigente" del 8-sep-2026**, posterior al corte (392 cajeros cambiaron de cupo y 144 de administrador; `estado` siempre `Produccion`) | Las variables de contexto usan el último snapshot ≤ cada origen ("as of", SUP-28): cambia algún atributo en el 20,4 % de los cajero-orígenes de M1. Los datos de referencia (cupo, administración, sucursal) usan el último snapshot de cada cajero, declarado en SUP-45 (v2): frente al del 23-jul cambian 2 cupos y 4 cajeros solo existen en el del 8-sep |
 | 11 | **Menos cajeros reportando** del 10 al 25-ago-2026 (355–390 frente a unos 425) | Se deja como dato; explica buena parte de la distancia entre la lectura observada y la RN-08 |
 | 12 | **SUP-02 no estaba implementado:** una entidad con todos sus reales en 0 en la ventana entraba al WAPE agregado | Sale solo del WAPE agregado; MAE, Bias y `n` la incluyen (SUP-27). En M3 baja el WAPE 3,1–4,9 pp **sin cambiar ningún pronóstico** (§4.4) |
 | 13 | **Hueco de disponibles** del 31-jul al 9-sep-2024 (33 días hábiles) | No se imputa; no entra en ninguna ventana de M6 |
 | 14 | **Clientes (M5):** 529 puntos frente a 344 esperados; ~217 activos en ago-2026; Pasto cae de 200–250 a 20–45 mil M/mes desde sep-2025; depósitos de hasta 203 mil M en un día; pocos "megapuntos" esporádicos dominan el sesgo | Se usan todos; diagnóstico en §6.5 |
 | 15 | **CBR (M4):** de 39 puntos, solo 10 con movimiento en ago-2026; casi sin datos los domingos | Se modela tal cual |
-| 16 | **Faltan fuentes para M6:** no hay histórico de traslados entre fondos ni de movimientos con BanRep (el pliego dice que el balance se construye con ellos) | BanRep se habilita por tarifa y solo en Cali (SUP-13); operaciones inferidas del histórico (SUP-08) |
+| 16 | **Faltan fuentes para M6:** el Anexo A lista `Historico BANREP.xlsx` e `Historico Traslados.xlsx`, que no están entre los 19 archivos recibidos (SUP-46) | BanRep se habilita por tarifa y solo en Cali (SUP-13); traslados y ventas inferidos de `dim_fondo` y del histórico de ventas (SUP-08). Es lo único del Anexo A que no se recibió |
 | 17 | **Linaje en el bucket:** sin manifiestos `.meta.json`; un solo reporte de calidad del 6-oct en la réplica | Informativo |
+| 18 | **Cajeros administrados por sucursal fuera de M6 (v1):** el flujo de los 84 cajeros con `admon = SUC` no llegaba a ningún fondo (42,2 mil M de ingresos y 111,7 mil M de salidas en el horizonte) | v2: 82 se integran al fondo de su sucursal administradora (Oficinas); 9859 y 9860 quedan fuera y declarados (sucursal 787 ausente de Oficinas; 2.568.045.929 COP de pagado de M1). El 2691 figura en Pasto pero su sucursal 70 se atiende desde Cali y va a `CALI\|TRANSPORTADORA_002` (SUP-12) |
+| 19 | **Tarifas y escalas (v1):** 5 MF de TDV fuera del municipio de la ciudad del fondo con tarifa urbana; la sucursal 70 con escala de la `Ubicación` (`INTERURBANO 3`) aunque `Escalas = 1` | v2: tarifa MF interurbano (SUP-21, +3,94 M COP en M2) y escala desde `Escalas` (SUP-22, −6,76 M COP en M3) |
+| 20 | **`nivel_riesgo` de la hoja 02 en bajo en las 2.592 filas (v1)**, incluidos 2 MF (8667 y 9311) con cupo menor que su flujo neto de algunos días; recolecciones de M3 de pocos miles de COP | v2: riesgo antes de la acción (SUP-42), cupo insuficiente declarado (SUP-44) y monto mínimo de recolección en M3 (SUP-43, 7 omitidas por 548.282 COP) |
+| 21 | **Fecha de disponibilidad de los traslados (v2 preliminar):** la nota del Anexo E dice que el traslado llega al destino al día siguiente | v2 final: el traslado se ordena el día anterior al faltante y sus dos filas llevan la fecha de ejecución (SUP-52); el costo entre ciudades usa la tarifa de la TDV del fondo origen (SUP-53) |
 
 **`origen_dato` (SUP-24 a SUP-26).** Cada fila de los contratos de salida lleva su procedencia en un conjunto cerrado: `PROYECTADO` (pronósticos M1–M5), `SIMULADO` (balance M6), `ESTIMADO` (recomendaciones, alertas, métricas, backtest) y **nunca `REAL`** (el horizonte es posterior al corte). Es la defensa frente al criterio de descarte "presentar como observado algo estimado". El Excel no tiene esa columna; la procedencia se declara en la hoja 04.
 
@@ -211,7 +227,7 @@ Ninguna corrección inventa datos: se deduplica, se convierten unidades, se excl
 | M3 | Sucursal | `entradas` y `salidas` | sucursal-día | 44 (× 2) | Provisión o recolección con costo |
 | M4 | Corresponsal bancario robusto (CBR) | `ingreso_efectivo_cbr` | fondo-día | 5 | Ninguna: insumo de M6 |
 | M5 | Clientes corporativos | `ingreso_efectivo_clientes` | fondo-día | 6 | Ninguna: insumo de M6 |
-| M6 | Fondos de las TDV | Ninguna: balance | fondo × denominación × día | 6 × 6 = 36 | Traslados, ventas, BanRep, cambios de denominación, con saldo antes/después y costo |
+| M6 | Fondos de las TDV | Ninguna: balance | fondo × denominación × día | 6 × 6 = 36 | Traslados, ventas y BanRep (v2: sin cambios de denominación ni intercambios dentro del fondo, SUP-14), con saldo antes/después y costo |
 
 Total: 646 series pronosticadas y evaluadas (M1–M5) + 36 de balance (M6) = 682.
 
@@ -223,7 +239,7 @@ Fórmulas oficiales sin cambios en `pipeline/src/daas/forecasting/metrics.py`:
 - **Bias** = Σ(Ŷ − Y) / ΣY (negativo = subpronóstico).
 - Pares con NaN se descartan; si Σ|Y| = 0 el resultado es NaN, nunca 0.
 
-**Dos lecturas del real en cajeros.** *Observada*: un cajero-día sin registro es faltante (la usa el arnés y el entrenamiento). *RN-08*: si la red reportó ese día (y no es Anexo C), la ausencia vale 0; según el README de Santiago es la lectura con la que puntúa el banco, y es más exigente. M1 y M2 publican las dos (SUP-02). El Anexo B (donde está RN-08) nunca se recibió.
+**Dos lecturas del real en cajeros.** *Observada*: un cajero-día sin registro es faltante (la usa el arnés y el entrenamiento). *RN-08*: si la red reportó ese día (y no es Anexo C), la ausencia vale 0; según el README de Santiago es la lectura con la que puntúa el banco, y es más exigente. M1 y M2 publican las dos (SUP-02); la hoja 04 v2 presenta primero la lectura RN-08 (M1 0,3145; M2 `pagado` 0,4488; M2 `cash_in` 0,4814). RN-08 está en el Anexo B, que sí se recibió, y el último párrafo del Anexo C confirma que la ausencia con la red operando vale 0 COP (auditoría del pliego, §0).
 
 ### 4.3 Validación: el arnés rodante y la regla de adopción
 
@@ -284,58 +300,69 @@ Todos cumplen R5 en selección, con bandas más angostas que la referencia. En e
 - **M1:** saldo inicial min(cupo, 500 M); umbral de alerta 8 % del cupo (RN-34, SUP-04/SUP-19); política `umbral_pronostico_a_cupo` con margen 0: se provisiona el día en que el saldo menos lo pronosticado bajaría del 8 % y se llena hasta el cupo, tope 500 M por provisión (RN-10, RN-11); lead time 0 (SUP-16). En backtest deja 3,4 % de días agotados y un remanente medio de 24,6 % del cupo (RN-12 pide cerca de 0 % y ≤ 22 %: las dos metas se oponen; SUP-15).
 - **M2:** misma familia con el saldo neto (`pagado` − `cash_in`); al cierre se recoge lo que pasa del cupo.
 - **M3:** política por sucursal (RN-40, RN-41; SUP-M3-01): reserva = mín(50 % del cupo, máx(8 % del cupo, σ del flujo neto)); provisión hasta la reserva + 3 días de salidas medias; recolección de lo que pasa de la reserva + 15 días de salidas medias (los 15 días son elección de Pragma). Con menos de 30 días válidos, regla vigente del banco.
-- Costos del Anexo E (`pipeline/conf/costos.yml`); cajero interurbano solo si su tipología lo dice (SUP-21); escala de sucursal desde `ubicacion` (SUP-22); acción de sucursal que se abastece a sí misma con costo 0 declarado (RN-04A). Costos del entregable vs Santiago: M1 169,0 → 158,5 M; M2 73,5 → 71,4 M; M3 148,9 → 147,7 M COP.
+- Costos del Anexo E (`pipeline/conf/costos.yml`). M1: tabla urbana o interurbana según la tipología de facturación (SUP-21). M2 (v2): `MF INTERURBANO` cuando el municipio del MF de TDV no coincide con la ciudad del fondo (RN-04A, SUP-21; 1519, 7352, 7814, 9251 y 9650). M3 (v2): escala de la sucursal interurbana desde el campo `Escalas` de Oficinas (SUP-22; solo cambia la sucursal 70). Equipos y acciones de sucursal con costo 0 declarado (RN-04A). Costos Santiago → v1 → v2: M1 169,0 → 158,5 → 158,5 M; M2 73,5 → 71,4 → 75,3 M; M3 148,9 → 147,7 → 140,3 M COP.
+- **v2, plan operativo:** `nivel_riesgo` de la hoja 02 medido con el saldo sin la acción (SUP-42); cupo insuficiente declarado en 8667 y 9311 (SUP-44: todas sus filas en alto, con días, neto máximo y demanda no atendida mínima); M3 no recomienda recolecciones de efectivo ocioso cuyo monto no supera el costo de la visita, nunca las de exceso sobre el cupo (SUP-43: 7 omitidas, 548.282 COP; el efectivo se encadena a la siguiente visita). M2 no omite ninguna (RN-35) y explica la única antieconómica (9251).
 - Cajeros sin dato reciente se pronostican en 0 (RN-08 aplicada como pronóstico) y se listan en `silenciosos` (12 cajeros de M1 con 0 los 15 días: 4 desinstalados + 8 sin dato con la red operando; 3 de M2).
 
 ### 4.7 M6: cómo se calcula y reglas de recomendación
 
-M6 **no entrena ni pronostica**: simula el balance por `fondo_id` × denominación a partir de los pronósticos de M1–M5 y recomienda acciones costeadas (`pipeline/src/daas/pipeline/run_u6.py`, `pipeline/src/daas/modules/funds_m6/`):
+M6 **no entrena ni pronostica**: simula el balance por `fondo_id` × denominación a partir de los pronósticos de M1–M5 y recomienda acciones costeadas (`pipeline/src/daas/pipeline/run_u6.py`, `pipeline/src/daas/modules/funds_m6/`). Lo que sigue es la v2; los cambios frente a la v1 se marcan.
 1. **Saldo inicial** = último disponible ≤ 31-ago por fondo y denominación, con disponibles corregidos (SUP-07, SUP-29).
-2. **Efecto neto diario de M1–M5 por fondo** (signos en `efecto_m1_m5` de `pipeline/conf/model_u6.yml`: ingresos = `cash_in` de M2, `entradas` de M3, M4 y M5; egresos = `pagado` de M1 y M2, `salidas` de M3), con el flujo de cada cajero/sucursal imputado al fondo de los maestros, sin rezago (SUP-12). El total de M5 se multiplica por un **factor de red móvil** 1/(1 + sesgo), medido en los 3 últimos orígenes cerrados y acotado a [0,67; 1,5] (SUP-20; M4 no se corrige). Hoy la razón medida supera el tope y se aplica 1,5. **[Contradicción resuelta]** El texto de SUP-20 cita razones 1,98 / 1,83 / 1,76 (corrida de Santiago); con el champion vigente son 1,90 / 1,72 / 1,75, media 1,79 (`ALX/plan_mejora_m5.md` §2.5). En los dos casos el factor aplicado es 1,5.
+2. **Efecto neto diario de M1–M5 por fondo** (signos en `efecto_m1_m5` de `pipeline/conf/model_u6.yml`: ingresos = `cash_in` de M2, `entradas` de M3, M4 y M5; egresos = `pagado` de M1 y M2, `salidas` de M3), imputado al fondo el día pronosticado, sin rezago (SUP-12). Cajeros de TDV: fondo `fondo` + `admon` del maestro CP; sucursales: `CIUDAD FONDO` + `TTADORA` de Oficinas. **v2, cajeros de sucursal** (`admon = SUC`, interruptor `m6_cajeros_sucursal`): su flujo va al fondo de su sucursal administradora (fila de Oficinas de su `codigo_sucursal`, el mismo puente que M3). Se integran 82 de 84; 9859 y 9860 quedan fuera porque su sucursal 787 no está en Oficinas (2.568.045.929 COP de pagado de M1, declarados en la hoja 04, en SUP-12 y en la métrica `flujo_sin_fondo`). El 2691 va a `CALI|TRANSPORTADORA_002` porque su sucursal 70 se atiende desde Cali (alternativa declarada: 1.360.258.526 COP a Pasto). Efecto en la hoja 05: ingresos 1.348,99 → 1.391,20 mil M COP; salidas 957,20 → 1.066,31 mil M COP; cuadre con los pronósticos ≤ 2 COP por fondo-día. En la v1 estos cajeros no llegaban a ningún fondo. El total de M5 se multiplica por un **factor de red móvil** 1/(1 + sesgo), medido en los 3 últimos orígenes cerrados y acotado a [0,67; 1,5] (SUP-20; M4 no se corrige). Hoy la razón medida supera el tope y se aplica 1,5. **[Contradicción resuelta]** El texto de SUP-20 cita razones 1,98 / 1,83 / 1,76 (corrida de Santiago); con el champion vigente son 1,90 / 1,72 / 1,75, media 1,79 (`ALX/plan_mejora_m5.md` §2.5). En los dos casos el factor aplicado es 1,5.
 3. **Reparto por denominación** según la mezcla histórica de los disponibles del fondo en 180 días (SUP-09).
 4. **Mínimo y máximo** = percentiles 10 y 90 del saldo diario en 180 días (SUP-10).
-5. **Simulador secuencial** (`simulator.py`): día a día aplica el efecto, detecta faltantes y excedentes, elige **una** alternativa de bajo costo por necesidad (traslado entre fondos, venta, BanRep, cambio de denominación o conservar) y la **aplica al saldo** (el saldo después de una acción es el antes de la siguiente). Traslados y cambios de denominación van en dos filas pareadas (RN-74). Sábados, domingos y festivos no admiten BanRep, ventas ni cambios de denominación (RN-71A). BanRep solo en Cali (SUP-13). La venta no tiene tarifa: su beneficio es la tasa histórica de ventas (SUP-23). Un excedente se conserva si guardarlo cuesta menos que actuar. Primero faltantes (mayor monto), luego excedentes.
+5. **Simulador secuencial** (`simulator.py`): día a día aplica el efecto, detecta faltantes y excedentes, elige **una** alternativa de menor costo por necesidad (RN-80) y la **aplica al saldo** (el saldo después de una acción es el antes de la siguiente). Primero faltantes (mayor monto), luego excedentes; un excedente se conserva si guardarlo cuesta menos que actuar (RN-79).
+   - **Operaciones de RN-84 (v2, SUP-14, interruptor `m6_operaciones_rn84`):** se usan `traslado_fondos`, `venta_efectivo` y `retiro_banrep`; `consignacion_banrep` está habilitada en Cali pero no se eligió en ninguna necesidad. `cambio_denominacion` (que es con BanRep) e `intercambio_bancos` (con otras entidades) quedan deshabilitados dentro del fondo y la explicación lo dice. En la v1 también hubo 0 filas de esas dos operaciones; solo cambia el texto.
+   - **Traslado al día siguiente (v2, SUP-52, interruptor `m6_traslado_t1`):** la nota del Anexo E dice que el efectivo sale del origen en la fecha de ejecución y llega al destino al día siguiente. El traslado se ordena el día T, anterior al faltante proyectado de T+1; sus dos filas (salida en el origen, entrada en el destino) llevan la fecha T, con el mismo monto y denominación (RN-74), y el destino lo recibe al cierre de T, que es su saldo inicial de T+1 (RN-71). Un faltante del mismo día no se cubre con traslado. La capacidad del origen es su saldo sobre el mínimo también después de sus flujos de T+1. Los traslados no tienen restricción de día hábil.
+   - **Días no hábiles:** sábados, domingos y festivos no admiten BanRep, ventas ni intercambios (RN-71A). BanRep solo en Cali, por tarifa del Anexo E (SUP-13; el histórico BanRep del Anexo A no se recibió, SUP-46). La venta no tiene tarifa: su beneficio es la tasa histórica de ventas (SUP-23).
+   - **Costos (Anexo E, hoja Fondos):** costo = fijo + monto / 10.000 × tarifa, registrado una sola vez en la fila de salida del origen (RN-74). Traslados entre fondos de la misma ciudad: costo 0 (nota del Anexo E). **Entre ciudades (v2, SUP-53):** tarifa de la transportadora del fondo origen; la alternativa (TDV del destino) se declara en la explicación y en la métrica `costo_traslado_tarifa_destino` (interruptor `m6_tarifa_traslado_declarada`, solo textos).
 
-Resultado en el entregable (hoja 05): 142 traslados en días hábiles + 58 en no hábiles (todos entre fondos de Cali, que el Anexo E no tarifa), 169 ventas, costo de traslados **253.905 → 0 COP** frente a Santiago (desaparece el único traslado con costo, Pasto → Ipiales, porque sin las filas `TOTAL` el mínimo de Ipiales baja de 2.535 M a 1.401 M), almacenamiento 52,3 → 43,4 M COP. M6 no reporta WAPE (SUP-11).
+**Resultado en el entregable v2 (hoja 05, 566 filas):** 99 traslados (198 filas; 25 ordenados el día anterior al faltante), 148 ventas, **4 retiros BanRep** y 216 sin acción; 275 necesidades, 251 resueltas con una acción y 24 conservadas por costo, 0 parciales, 0 sin solución, 0 saldos negativos; alertas de M6 250. **Costo de M6: 1.441.530 COP** (v1: 0):
+- 545.413 COP de 2 traslados `IPIALES|TRANSPORTADORA_002 → PASTO|TRANSPORTADORA_001` en la denominación 50.000, ejecutados el 4-sep (709.150.000 COP, costo 16.219 + 709.150.000 / 10.000 × 3,40 = 257.330) y el 5-sep (799.600.000 COP, costo 288.083), para los faltantes de Pasto del sábado 5 y el domingo 6. Con los cajeros de sucursal integrados, Pasto quedaría bajo su mínimo esos días; BanRep y venta no se permiten en no hábiles y el traslado desde Ipiales es la opción de menor costo (desde Cali costaba 1.486.729). Con la tarifa de la TDV del destino serían 938.560 COP (+393.147; SUP-53).
+- 896.117 COP de 4 retiros BanRep del 1-sep en `CALI|TRANSPORTADORA_003` (denominaciones 2.000, 5.000, 10.000 y 20.000; 947.993.000 COP): faltantes del primer día que no admiten traslado, porque habría que ordenarlo antes del corte.
+
+Por fondo (ventas / filas de traslado / retiros BanRep / costo, v1 → v2): CALI|001 35/69/0/0 → 28/70/0/0; CALI|002 47/0/0/0 → 41/2/0/0; CALI|003 0/57/0/0 → 0/48/4/896.117; CALI|004 0/74/0/0 → 0/74/0/0; IPIALES|002 59/0/0/0 → 59/2/0/545.413; PASTO|001 28/0/0/0 → 20/2/0/0. Almacenamiento: 43,37 M (v1) → 41,46 M COP (v2). La verificación independiente recalculó los 99 traslados y los 4 retiros contra el Anexo E con 0 diferencias.
+
+**v1 (21-oct), como referencia:** 200 filas de traslado (100 traslados; 142 filas en días hábiles y 58 en no hábiles, todas entre fondos de Cali, a costo 0), 169 ventas, 0 BanRep, costo de M6 0 (frente a 253.905 COP de Santiago, por el traslado Pasto → Ipiales que desaparece al quitar las filas `TOTAL`: el mínimo de Ipiales baja de 2.535 M a 1.401 M), almacenamiento 52,3 → 43,4 M COP frente a Santiago. M6 no reporta WAPE (SUP-11).
 
 ---
 
 ## 5. Supuestos SUP-xx vigentes
 
-Texto completo (qué se asume, por qué, salvedad, evidencia y efecto) en `ALX/pipeline/docs/supuestos.md` (no está en el repo); la hoja 04 los cita por número. SUP-01 a SUP-23 y SUP-M3-01/02 vienen del registro de Santiago; SUP-24 a SUP-40 son de ALX. **[Contradicción resuelta]** El PDF de Andrés (`ALX/Supuestos-Analiticos-PoC-DaaS-Bancolombia.pdf`) coincide con este registro hasta SUP-14; desde SUP-15 los mismos números significan otra cosa (PDF SUP-15/16/17 = registro SUP-24/25/26; PDF SUP-18, MILP de fondos, no tiene equivalente). Manda el registro, que es el que cita la hoja 04.
+**Registro final: `pipeline/docs/supuestos.md`** (versión v2, 26-oct-2026; en el repo desde la v2). **Decisión del usuario del 26-oct-2026: el registro propio es la versión final de los supuestos; los documentos de Andrés en `revision-andres/` (Drive) no se usan.** La indicación del banco es suplir con supuestos documentados toda información que no suministró: cada SUP tiene seis encabezados (No lo entregó el banco · Qué asumimos · Por qué, con texto literal del pliego o de los Anexos · Efecto cuantificado · Alternativa y su efecto · Dónde se aplica). La hoja 04 cita cada SUP por número y título. SUP-01 a SUP-23 y SUP-M3-01/02 vienen del registro de Santiago; SUP-24 a SUP-40 son de la v1 de ALX; **SUP-41 está reservado** (M5 v2, no adoptado); **SUP-42 a SUP-53 son nuevos de la v2**. Nada se renumeró. En la v2 se reescribieron SUP-01, 02, 03, 06, 08, 12, 13, 14, 16, 18, 21, 22, 27, 29, 36, 37, 40 y M3-01; "Preguntas abiertas" pasó a "Preguntas convertidas en supuestos" (no habrá respuestas del banco: cada duda la resuelve un SUP). **[Contradicción resuelta]** El PDF de Andrés (`ALX/Supuestos-Analiticos-PoC-DaaS-Bancolombia.pdf`) y su consolidación del 26-oct coinciden con este registro hasta SUP-14; desde SUP-15 los mismos números significan otra cosa (PDF SUP-15/16/17 = registro SUP-24/25/26; PDF SUP-18, MILP de fondos con ~798 M COP de BanRep, no tiene equivalente ni corresponde al Excel). Manda el registro, que es el que cita la hoja 04. Guía de lectura (escrita antes de la v2, cubre hasta SUP-41): `ALX/guia_supuestos.md`; variables de cada champion: `ALX/variables_por_modelo.md`.
 
-| SUP | Significado |
+| SUP | Significado (v2) |
 |---|---|
 | SUP-01 | RN-07: los cajeros activos en el maestro y presentes en desinstalados salen de WAPE, MAE y Bias en todos sus días (por cajero, no por entidad-día) y no calibran la banda; siguen en las salidas |
 | SUP-02 | Un cero con la red operando es observación válida; los 27 días del Anexo C quedan nulos; entidad con denominador cero fuera del WAPE agregado; M1 y M2 publican lectura de entrenamiento y lectura RN-08 |
-| SUP-03 | M1–M3 pronostican todos los días calendario del 1 al 15-sep |
+| SUP-03 | M1–M3 pronostican todos los días calendario del 1 al 15-sep (RN-02) |
 | SUP-04 | Umbral de agotamiento de M1 = 8 % del cupo (RN-34) |
 | SUP-05 | Cassette de depósitos de M2: sin efecto (el efectivo se recicla, RN-30) |
 | SUP-06 | Código de cajero reutilizado = una sola serie (RN-06) |
 | SUP-07 | Saldo inicial de M6 = último registro ≤ 31-ago por fondo y denominación |
-| SUP-08 | Venta e intercambio habilitados por fondo según su histórico |
+| SUP-08 | Operaciones habilitadas por fondo, inferidas del histórico (`dim_fondo`, ventas) |
 | SUP-09 | Reparto del efecto de M1–M5 por denominación según la mezcla de 180 días (salvedad abierta: aún sin las exclusiones de SUP-29) |
 | SUP-10 | Mínimo/máximo de M6 = percentiles 10/90 del saldo en 180 días |
 | SUP-11 | M6 sin WAPE: completitud y cobertura de recomendaciones |
-| SUP-12 | Flujo de M1–M3 imputado al fondo de los maestros, el mismo día (RN-70) |
-| SUP-13 | BanRep habilitado por tarifa del Anexo E y solo en Cali (RN-75) |
-| SUP-14 | Intercambio y cambio de denominación dentro del fondo, regla determinista, no en días no hábiles |
+| SUP-12 | **Reescrito (v2).** Flujo de M1–M3 al fondo, el día pronosticado: cajeros de TDV al fondo del maestro CP, sucursales al de Oficinas y **cajeros de sucursal al fondo de su sucursal administradora** (82 de 84; 9859 y 9860 fuera y declarados; 2691 a Cali). RN-70, RN-08A, pliego §7.1 |
+| SUP-13 | BanRep habilitado por tarifa del Anexo E y solo en Cali (RN-75); v2: 4 retiros BanRep el 1-sep en CALI\|TRANSPORTADORA_003 |
+| SUP-14 | **Reescrito (v2).** Sin intercambio ni cambio de denominación dentro del fondo (RN-84): las operaciones usadas son `traslado_fondos` (198 filas), `venta_efectivo` (148) y `retiro_banrep` (4); `consignacion_banrep` habilitada en Cali y no elegida |
 | SUP-M3-01 | Saldo de la bóveda de M3 en [0, `cupo_max_suc`]; política por sucursal |
 | SUP-M3-02 | `cupo_max_suc` vigente = último valor ≤ 31-ago |
 | SUP-15 | No se le pone precio al agotamiento ni al efectivo quieto en cajeros y sucursales; frontera de márgenes m0/m25/m50 |
-| SUP-16 | Lead time de provisión de M1 = 0 días (RN-11) |
+| SUP-16 | Lead time de provisión de M1 = 0 días (RN-11); los traslados de M6 siguen SUP-52 |
 | SUP-17 | Entidades con poca historia: el modelo global les comparte lo aprendido; respaldos documentados |
 | SUP-18 | Nada posterior al corte entra a entrenar ni a elegir (el holdout de septiembre no se lee) |
 | SUP-19 | El 8 % es umbral de alerta; la política de M1 es la del pliego (margen 0) |
 | SUP-20 | Factor de red móvil sobre el total de M5 que consume M6, acotado a [0,67; 1,5] |
-| SUP-21 | Cajero interurbano solo si su tipología de facturación lo dice |
-| SUP-22 | Escala de la sucursal para el costo desde `ubicacion` |
+| SUP-21 | **Reescrito (v2).** Tarifa urbana o interurbana (RN-04A): M1 por tipología de facturación; **M2 `MF INTERURBANO` si el municipio del MF de TDV no es la ciudad del fondo** (5 MF, +3.936.535 COP); alternativa declarada para 4 INDIVIDUAL de M1 (+575.069 COP) |
+| SUP-22 | **Reescrito (v2).** Escala de la sucursal interurbana desde el campo `Escalas` de Oficinas (Anexo A); solo cambia la sucursal 70 (−6.757.937 COP) |
 | SUP-23 | Tasa de venta de M6 desde `consolidado_ventas` (no contractual) |
 | SUP-24 | Métricas marcadas `origen_dato = ESTIMADO` |
 | SUP-25 | Recomendaciones y alertas marcadas ESTIMADO, no SIMULADO |
-| SUP-26 | `REAL` no aparece en `output/api/*` |
+| SUP-26 | `REAL` no aparece en los contratos de salida |
 | SUP-27 | Entidad con denominador cero fuera solo del WAPE agregado, también en el arnés (precisa SUP-02) |
-| SUP-28 | Variables V4 con el maestro "as of" (último snapshot de `cp_historico.xlsx` ≤ origen) |
+| SUP-28 | Variables de contexto con el maestro "as of" (último snapshot de `cp_historico.xlsx` ≤ origen) |
 | SUP-29 | Disponibles de M6 corregidos: sin `TOTAL`, TDV_001 en pesos, blancos y doble formato fuera de la ventana de SUP-10 |
 | SUP-30 | Regla de adopción R1–R5 declarada antes de medir |
 | SUP-31 | k = 2 en R1 por búsqueda múltiple |
@@ -344,14 +371,27 @@ Texto completo (qué se asume, por qué, salvedad, evidencia y efecto) en `ALX/p
 | SUP-34 | Demanda censurada: se modela lo dispensado |
 | SUP-35 | Duplicado del 13-may-2026 y valores corruptos: corrección de datos, no imputación |
 | SUP-36 | Imputación de faltantes: evaluada y **no adoptada** |
-| SUP-37 | Ceros dudosos de M3 en agosto de 2026 se leen como cero real |
-| SUP-38 | Repetición acotada del ML con imputación (28 modelo-serie, decisión D1) |
-| SUP-39 | Champions del laboratorio en el pipeline del entregable (`forecaster.modelo_alx`, receta congelada) |
+| SUP-37 | Ceros de M3 en agosto de 2026 leídos como reales |
+| SUP-38 | Repetición acotada del laboratorio a los finalistas (28 modelo-serie, decisión D1) |
+| SUP-39 | Modelos finales del laboratorio en el pipeline del entregable (`forecaster.modelo_alx`, receta congelada) |
 | SUP-40 | Plantilla del Anexo D y tarifas del Anexo E originales en la corrida del entregable |
-
-**SUP-41 no existe todavía:** es la recomendación de M5 v2 (factor de SUP-20 por fondo encogido 50 % con tope 1,5) que **no se aplicó** y espera decisión del usuario (§6.5).
+| SUP-41 | **Reservado:** recomendación de M5 v2 (factor de SUP-20 por fondo encogido 50 % con tope 1,5), no aplicada (§6.5) |
+| SUP-42 | **Nuevo (v2).** `nivel_riesgo` de la hoja 02 medido antes de la acción (alto si el saldo sin la acción se agota o supera el cupo; medio bajo el 8 % o en recolecciones de M2; bajo si es preventiva u ociosa) |
+| SUP-43 | **Nuevo (v2).** Monto mínimo de recolección: M3 no recoge efectivo ocioso cuyo monto no supera el costo de la visita; nunca omite las de exceso sobre el cupo (7 omitidas, 548.282 COP) |
+| SUP-44 | **Nuevo (v2).** Cupo insuficiente: 8667 y 9311 (MF de sucursal, cupo 85.502.000) con todas sus filas en alto y la demanda no atendida declarada; una atención diaria hasta el cupo |
+| SUP-45 | **Nuevo (v2).** Datos de referencia de los cajeros del último snapshot del maestro CP (8-sep-2026); las variables de pronóstico usan el snapshot ≤ origen (SUP-28) |
+| SUP-46 | **Nuevo (v2).** Insumos del Anexo A no recibidos: `Historico BANREP.xlsx` e `Historico Traslados.xlsx`; se suplen con SUP-08 y SUP-13 |
+| SUP-47 | **Nuevo (v2).** `nivel_riesgo` de la hoja 05 = riesgo residual después de actuar |
+| SUP-48 | **Nuevo (v2).** La columna de cumplimiento que la plantilla de la hoja 02 no trae no se agrega; el cumplimiento va en `regla_aplicada` y la explicación |
+| SUP-49 | **Nuevo (v2).** Definiciones de calendario de RN-04: festivos (`holidays` CO), quincena (15) y fin de mes, corridos al hábil anterior |
+| SUP-50 | **Nuevo (v2).** RN-08 como pronóstico 0 de equipos silenciosos (12 de M1) y listado en `silenciosos` |
+| SUP-51 | **Nuevo (v2).** Variables de eventos y externas propias (primas, temporada, Semana Santa, Feria de Cali, Carnaval de Pasto, festivos de Ecuador) |
+| SUP-52 | **Nuevo (v2).** Traslado disponible en el fondo destino al día siguiente (nota del Anexo E), ordenado el día anterior al faltante, con las dos filas en la fecha de ejecución (RN-74) |
+| SUP-53 | **Nuevo (v2).** Tarifa del traslado entre ciudades = la de la transportadora del fondo origen (545.413 COP; con la del destino, 938.560) |
 
 Decisiones del usuario del 20-oct que fijaron varios SUP: principio rector "toda decisión defendible ante Bancolombia; ninguna puede exponer a un criterio de descarte; ante dos opciones válidas, la más conservadora y trazable, declarada y medida"; D1 repetición acotada a finalistas (SUP-38); D2 SUP-02 en el arnés y V4 "as of" antes de repetir el ML (SUP-27, SUP-28, SUP-30 a SUP-34); D3 solo corregir los disponibles de M6 (SUP-29), el SUP-09 nuevo para después; D4 registro de Santiago como base, sin renumerar, lo nuevo desde SUP-24. Directriz general: si una decisión técnica choca con el pliego, gana el pliego y se documenta.
+
+Decisiones del 26-oct-2026: (1) el registro propio es la versión final de los supuestos y los documentos de Andrés (`revision-andres/`) no se usan; (2) la información que el banco no suministró se suple con supuestos documentados (indicación del banco); (3) D-1, escala de sucursal desde `Escalas` (SUP-22), y D-2, textos limpios de la hoja 03, confirmadas. Quedan para decisión del usuario, sin aplicar: la alternativa de SUP-44 (segunda atención consolidada en 8667/9311: 4 y 1 provisiones adicionales por 73.047.796 y 18.008.804 COP) y la de SUP-21 (INDIVIDUAL interurbano, +575.069 COP).
 
 ---
 
@@ -365,11 +405,35 @@ Regla general: casi todo el material experimental **no está en el repo** (no ha
 - `gbm_cal` y `gbm_cal_l1` difieren de los registros de Santiago en M1 (hasta 0,018) porque esas corridas son anteriores al orden determinista de filas que hoy tiene `global_gbm.py`; por eso **toda comparación usa la referencia recalculada en ALX en los dos lados**.
 - La receta del pipeline recalculada en ALX reproduce la hoja 03 del Excel de Santiago en los 7 datasets (`ALX/ml/resultados/hoja03_vs_alx.csv`).
 
-### 6.2 EDA por serie con Box-Jenkins (18-oct) — análisis, no modelo
+### 6.2 EDA con Box-Jenkins: v2 vigente (24-oct) y notebook 02 superado (18-oct) — análisis, no modelo
+
+**EDA vigente: `ALX/eda/03_eda_box_jenkins_v2.ipynb` (24-oct-2026; módulo `ALX/eda/eda_bj.py`; 290 celdas, 93 figuras, 0 errores; revisión APPROVED en la iteración 3).** Hace solo la fase de identificación de Box-Jenkins como análisis exploratorio, **sin estimar modelos** (0 SARIMAX/ARIMA/AIC en el cuaderno y el módulo). Cifras de esta subsección: §9 y §10 del cuaderno (marcadores `concl:M1.final` … `concl:M6.final` y `concl:9.3`).
+
+- **Método.** Cada modelo se analiza en el índice donde está su volumen: M1 y M2 en días calendario (s = 7, m = 30), M3 y M4 en lun–sáb (s = 6, m = 26), M5 y M6 en lun–vie (s = 5, m = 22). Escala log1p justificada con λ de Guerrero, rango-media y ρ media–desviación. ADF + KPSS en una tabla de cinco pasos; **D antes que d** (D = 1 solo si F_s ≥ 0,64, picos en s, 2s y 3s con ρ(3s)/ρ(s) ≥ 0,8 y sin sobrediferenciación; si esos criterios discrepan, la estacionalidad es determinista y se describe con perfiles y eventos). Correlogramas clásicos `plot_acf`/`plot_pacf` de statsmodels con banda del 95 % y lectura en texto; Ljung-Box sobre la serie estacionarizada z (no sobre residuos de un modelo); F_t/F_s (STL/MSTL, con componente anual donde cabe) y periodograma; estudio de eventos de calendario contado en días hábiles u operativos con consistencia entre años (pagos, primas, Semana Santa, diciembre, Feria de Cali, Carnaval de Pasto, festivos de Ecuador); intermitencia ADI/CV² (Syntetos-Boylan); heterogeneidad por entidad; CCF, Granger con corrección de Holm e identidad de flujos M1–M5 → M6; varianza explicada en escala común (§9.1) frente a importancias guardadas de permutación y SHAP de `ALX/ml/resultados/` (§9.2, sin reentrenar). Los días dudosos (ceros de red de M3 y M6, caídas de reporte de M1/M2) se apartan del análisis; no es imputación y los modelos entrenan con los datos tal cual.
+- **Hallazgos comunes.** La estacionalidad semanal es fuerte y **determinista**: **D = d = 0 en casi todos los agregados**; solo M2 `cash_in` y M3 (`entradas` y `salidas`) dan **D = 1, d = 0**. Por entidad domina (0, 0) (M1 96 %, M2 98–100 %, M5 100 %). En las 8 series el **Ljung-Box de z en 2s da p < 0,001**: tras quitar la semana queda memoria que los rezagos propios aprovechan. **Lo que explica la serie coincide con lo que aporta al pronóstico** (la estacionalidad semanal llega al modelo por `dia_de_semana` y el calendario por `festivos`/`dia_del_mes_y_pago`) en todas las series con ML **salvo M4**, donde la primera fuente es la **estacionalidad anual** (rezago 312), que el modelo solo recibe de forma indirecta.
+- **Por modelo (agregado de la red):**
+
+  | Serie | (D, d) | Correlograma | Fuerza | Eventos de calendario principales | Qué explica la serie (§9.1) | Qué aporta al pronóstico (cuota de permutación, §9.2) |
+  |---|---|---|---|---|---|---|
+  | M1 | (0, 0) | ρ(1) = 0,28, ρ(s) = 0,36 | F_s(7) = 0,65, F_s(30) = 0,50, F_t = 0,30 | fin de mes (pago) +80,7 %, día 1 +69,6 %, prima de diciembre +61,3 %, día siguiente al pago +50,9 % | semana 43 %, mes 23 %, tendencia 10 % | `dia_del_mes_y_pago` 30 %, `dia_de_semana` 27 %, `festivo_detalle` 11 % |
+  | M2 `pagado` | (0, 0) | ρ(1) = 0,20, ρ(s) = 0,55 | F_s(7) = 0,72 | fin de mes +66,1 % (p = 0,062), prima +53,8 %, festivo −52,2 % | semana 57 %, mes 12 %, calendario 11 % | `dia_de_semana` 35 %, `dia_del_mes_y_pago` 20 %, `festivo_detalle` 16 % |
+  | M2 `cash_in` | (1, 0) | tras (1 − B^s): ρ(1) = 0,13, ρ(s) = −0,37 | F_s(7) = 0,78 | Carnaval de Pasto −65,0 % en Pasto y −61,3 % en Ipiales, festivo −53,2 % | semana 72 %, calendario 10 %, serie hermana 5 % | `dia_de_semana` 51 %, `festivos` 20 %, `perfil_entidad` 13 % |
+  | M3 `entradas` | (1, 0) | tras (1 − B^s): ρ(1) = 0,42, ρ(s) = −0,22 | F_s(6) = 0,95, F_t = 0,53 | Carnaval de Pasto −28,9 % en Ipiales, Feria de Cali +26,4 % | semana 88 % | `festivos` 42 %, `dia_de_semana` 42 %, `festivo_detalle` 14 % |
+  | M3 `salidas` | (1, 0) | tras (1 − B^s): ρ(1) = 0,37, ρ(s) = −0,26; PACF corta en 2 | F_s(6) = 0,94, F_t = 0,51 | Feria de Cali +43,3 %, Carnaval de Pasto −32,5 % en Ipiales, prima +29,6 % | semana 85 % | `dia_de_semana` 48 %, `festivos` 34 %, `festivo_detalle` 10 % |
+  | M4 | (0, 0) | ρ(1) = 0,32, ρ(s) = 0,39; PACF corta en 1 | F_s(6) = 0,55, F_s(312) = 0,57 | Carnaval de Pasto −69,6 % en Ipiales y −48,8 % en Pasto, fin de mes −39,7 %, día 1 −34,1 % | **anual 31 %**, semana 31 %, mes 9 % (no explicado 22 %) | `dia_de_semana` 61 %, `nivel_y_tendencia` 25 %, `dia_del_mes_y_pago` 14 % (**no coinciden**) |
+  | M5 | (0, 0) | ρ(1) = 0,13, ρ(s) = 0,36 | F_s(5) = 0,59, F_s(260) = 0,61, F_t = 0,34 | post-festivo +154,7 %, primer día tras un bloque +147,7 %, día 2 +85,0 %, Feria de Cali +54,1 %, festivo de Ecuador en Ipiales −51,8 % | semana 32 %, anual 30 %, tendencia 10 % (no explicado 19 %) | `festivos` 55 %, `dia_de_semana` 15 %, `festivo_detalle` 12 % |
+  | M6 | (0, 0) | ρ(1) = 0,73, ρ(s) = 0,52; memoria persistente (semivida 8) | F_t = 0,66, F_s(5) = 0,28, F_s(22) = 0,31 | Δsaldo en % del saldo medio: fin de año −14,3 %, día 1 −9,5 %, fin de mes −9,3 % | tendencia 52 %, mes 12 %, semana 10 % | no pronostica con ML |
+
+- **Relaciones multivariadas.** M2: CCF `cash_in` → `pagado` con pico en k = 0 (ρ = 0,79); Granger con Holm significativo en los dos sentidos. M3: CCF `entradas` → `salidas` en k = 0 (ρ = 0,76); en `entradas` la decisión de D depende de los ceros dudosos de red (con ellos (0, 0) y ρ(s) = 0,27; sin ellos (1, 0) y ρ(s) = 0,89). M1: correlación red de la ciudad ↔ cajero 0,52 en log1p. M4 y M5: casi no hay co-movimiento entre fondos (Spearman mediano 0,06 y 0,13). **M6: la identidad de flujos casi no explica el Δsaldo diario** (β entre 0,007 y 0,218 y **R² ≤ 0,013** en los 5 fondos que reporta la §10; Granger flujo → Δsaldo con p de Holm < 0,05 solo en CALI/TDV003).
+- **Salvedad de las importancias** (§9.2): salen de los CSV de la fase 2 (escenario S0), no de S1; en M4 se explica un proxy (`ml_lgbm_v1_l1_opt_m4`) que no es miembro del champion `combo_perfil_gbml1`.
+- **Qué supera al notebook 02** (§11 del cuaderno): correlogramas clásicos en vez de mapas de calor por entidad; índice propio por modelo en vez de calendario con s = 7 para todos; D antes que d con ADF + KPSS en vez de una etiqueta; transformación justificada por serie; ceros dudosos apartados con sensibilidad; estudio de eventos en días hábiles en vez de regresión en días calendario; periodograma, intermitencia por clase y análisis multivariado, que el 02 no tenía; conclusiones por modelo con cifras.
+
+**Notebook 02 (18-oct, superado por el 03).** Las cifras siguientes son **del notebook 02** y se conservan como historia; no se comparan una a una con las del 03, que usa otro grano (agregado de la red frente a cada serie) y otro método de calendario. Para cualquier pregunta sobre los datos, usa el 03.
 
 - 682 series al mismo grano del pronóstico (no agregado, por decisión del usuario), con datos corregidos y el Anexo C como NaN. Pruebas: intermitencia ADI-CV², atípicos por STL robusto, λ de Guerrero, ADF y KPSS, `ndiffs`/`nsdiffs`, ACF/PACF, fuerza de tendencia y estacionalidad (STL/MSTL, 7 y 30 días), Ljung-Box, efectos de calendario por OLS con errores HAC y órdenes SARIMA candidatos. 242 series con tramo contiguo, 412 con un tramo rellenado solo para la prueba, 28 sin base.
 - Hallazgos que guiaron el modelado: en cajeros manda el **calendario de pagos**, no la semana (M1: +51 % el día de pago, significativo en el 91 % de los cajeros; +39 % el día siguiente; +21 % los días 1–2; −45 % en festivos; estacionalidad semanal débil, F_s7 mediana 0,37); sucursales con estacionalidad semanal fuerte (0,81–0,82) e intermitencia por calendario; M4 errático con la peor cobertura (79 %); M5 errático (CV² 3,94) con cambio de régimen en la mitad de los fondos; M6 casi un paseo aleatorio con tendencia. Ljung-Box rechaza ruido blanco en el rezago 7 en el 78–100 % de las series.
-- Dónde está: `ALX/eda/` (`box_jenkins.py`, `calcular_indicadores.py`, `graficos_bj.py`, `construir_notebook_02.py`, notebook `02_eda_series_box_jenkins.ipynb` con 17 secciones y 67 figuras, `resultados/` con `indicadores_series.{parquet,csv}` de 682 × 114, `acf_pacf.parquet`, `efectos_calendario.parquet`, `cobertura_grano.csv`, `efecto_correcciones.csv`, `rangos_series.csv`, `ceros_recientes.csv`). El EDA agregado inicial del 8-oct es `ALX/01_series_de_tiempo.ipynb` (con `ALX/graficos_poc.py`). **Nada de esto está en el repo** (el usuario excluyó los notebooks de análisis).
+- Dónde está el 03 (vigente): `ALX/eda/03_eda_box_jenkins_v2.ipynb` (10,1 MB, ejecutado) y su módulo `ALX/eda/eda_bj.py`; revisión y verificación en la raíz del Drive, `Mi unidad/PoC-Bancolombia/.agents/tasks/eda-box-jenkins-v2/` (`review-eda.md`, `verificacion-eda.md`).
+- Dónde está el 02 (superado): `ALX/eda/` (`box_jenkins.py`, `calcular_indicadores.py`, `graficos_bj.py`, `construir_notebook_02.py`, notebook `02_eda_series_box_jenkins.ipynb` con 17 secciones y 67 figuras, `resultados/` con `indicadores_series.{parquet,csv}` de 682 × 114, `acf_pacf.parquet`, `efectos_calendario.parquet`, `cobertura_grano.csv`, `efecto_correcciones.csv`, `rangos_series.csv`, `ceros_recientes.csv`). El EDA agregado inicial del 8-oct es `ALX/01_series_de_tiempo.ipynb` (con `ALX/graficos_poc.py`). **Nada de esto está en el repo** (el usuario excluyó los notebooks de análisis).
 
 ### 6.3 SARIMA de referencia (18-oct) — descartado
 
@@ -397,11 +461,19 @@ Regla general: casi todo el material experimental **no está en el repo** (no ha
 - **En M4 no se adoptó nada:** el mejor (`ml_ens_campeon_ml_m4`, WAPE 0,3278, cumple k = 2) no fue finalista; queda como revisión pendiente.
 - **Qué hay en el repo:** las 80 recetas `lab/conf/experimentos/*.yml` (19 de Santiago + 61 `ml_*` de ALX; el registro las carga todas aunque solo se usen las de los champions), `ml/pronosticar.py`, `global_ml.py` y `calendario_co.py`. **En `ALX/ml/`** (fuera del repo): `adopcion.py` (y `huella_regla()`), `conf/adopcion_ml.yml`, `conf/ensambles/`, `correr_ml.py`, `correr_ensambles.py`, `ensambles.py`, `etapas.py`, `optuna_ml.py`, `decision.py`, `bandas_ml.py`, `explicar_ml.py`, `registrar_mlflow.py`, `verificar_registro.py`, `medir_sin_contexto.py`, el notebook `04_mejora_modelos_ml.ipynb` y `resultados/` (`adopcion.csv` con los 146 candidatos y su decisión, `comparacion_*.csv`, `bandas_ml.csv`, `cribado.csv`, `pesos_ensambles.csv`, `optuna_<ds>.csv`, `importancias_permutacion.csv`, `shap_resumen.csv`, `reproduccion_santiago.csv`, `verificacion_registro.csv`, `figuras/`).
 
-### 6.5 M5: sesgo estructural, diagnóstico y M5 v2 (22-oct) — no adoptado
+### 6.5 M5: sesgo estructural, diagnóstico y M5 v2 (22-oct) — no adoptado; EDA de M5 (25-oct)
 
 - **Problema:** el champion de M5 subestima en 17 de 19 orígenes (Bias medio −20,9 % en selección, −24,7 % en bloqueados, −43,0 % en el chequeo; Santiago tiene el mismo patrón, −43,2 % en el chequeo). Empeora en 2026.
 - **Diagnóstico** (`ALX/plan_mejora_m5.md`): el modelo acierta la mediana (P(y > ŷ) = 0,494) pero la suma real es 1,32 veces la pronosticada: cola derecha enorme. El 10 % de los días con mayor depósito explica el 143 % del sesgo; unos pocos "megapuntos" esporádicos (punto 220 de `CALI|TRANSPORTADORA_001`, mediana de 87 mil M por depósito; 276 y 27 de Pasto; 69 de Ipiales, 68,8 % del volumen histórico de ese fondo) explican cerca de la mitad. En el chequeo, un solo día (27-ago, 78,6 mil M del punto 220) explica el 35 %. Ninguna transformación del pronóstico mejora a la vez WAPE y Bias (frontera: f = 1,155 lleva el Bias a −8,7 % pero sube el WAPE 2,49 ± 0,97 pp): **elegir es una decisión de política, no de modelo**. La regla v1 rechaza por construcción toda corrección de sesgo. Plan priorizado P1–P9 (regla v2, corrección de sesgo móvil, variables de estado de los puntos, recencia, cuantiles, etc.), con preguntas al banco sobre esos clientes.
-- **M5 v2** (`ALX/m5_mejora/`, regla v2 `conf/adopcion_m5_v2.yml` huella `688ae78b095e`, 17 orígenes frescos de días 15): **ningún candidato cumple**; el mejor (`cs50`, factor global encogido 50 %) baja el |Bias| de 20,9 % a 12,2 % pero cuesta +2,01 ± 1,09 pp de WAPE en selección. Recomendación del informe: dejar M5 sin cambios y ajustar solo SUP-20 a un factor por fondo encogido 50 % con tope 1,5 (sería SUP-41); para la corrida de septiembre da 1,5 en los 6 fondos, así que el Excel no cambiaría. **No se aplicó: la decisión es del usuario.** El Excel siguió en `52e7547f…`.
+- **M5 v2** (`ALX/m5_mejora/`, regla v2 `conf/adopcion_m5_v2.yml` huella `688ae78b095e`, 17 orígenes frescos de días 15): **ningún candidato cumple**; el mejor (`cs50`, factor global encogido 50 %) baja el |Bias| de 20,9 % a 12,2 % pero cuesta +2,01 ± 1,09 pp de WAPE en selección. Recomendación del informe: dejar M5 sin cambios y ajustar solo SUP-20 a un factor por fondo encogido 50 % con tope 1,5 (sería SUP-41); para la corrida de septiembre da 1,5 en los 6 fondos, así que el Excel no cambiaría. **No se aplicó: la decisión es del usuario.** El Excel siguió en `52e7547f…`, y la v2 del 26-oct tampoco cambia M5 (SUP-41 queda reservado).
+- **EDA dedicado de M5** (`ALX/eda/04_eda_m5.ipynb`, 25-oct-2026; módulo `ALX/eda/eda_m5.py`; 71 celdas, 46 figuras, 0 errores; revisión APPROVED en la iteración 2; Box-Jenkins sin estimar modelos). Resumen con cifras en `Mi unidad/PoC-Bancolombia/.agents/tasks/eda-m5/final_report.md`. Confirma y cuantifica el diagnóstico anterior:
+  - **Concentración:** 547 pares fondo-punto; **Gini 0,90**; el **top 1 % de pares lleva el 47,3 % del volumen** (top 10 %: 85,6 %). La variabilidad del log del fondo la explica el **tamaño del depósito (84,8 %)**, casi nada la **frecuencia (3,3 %)**. Por punto la demanda es intermitente (ADI mediano 4,55).
+  - **Colas pesadas:** a nivel par-día **Hill α̂ ≈ 1** (1,01: media al límite, varianza infinita); a nivel fondo-día α̂ ≈ 2,62. 12 megapuntos esporádicos llevan el 11,4 % del volumen y 2 grandes recurrentes el 19,1 %; ninguno tiene un ritmo operable.
+  - **Identificación:** ADF y KPSS se contradicen; D = 0, d = 0. ρ(1) = 0,13, ρ(s = 5) = 0,36; F_s(5) = 0,59, F_t = 0,34. Ipiales (66 cambios de nivel) y Pasto (32) no son estacionarias en nivel: su persistencia viene de esos cambios, no de una estructura ARMA.
+  - **Calendario:** post-festivo **+155 %** [IC +93; +226], debido al tamaño del depósito (+144 %) y no a la frecuencia (+4,7 %); se debilita (2024 +174 %, 2025 +111 %, 2026 +72 %).
+  - **Cambio en 2026:** el Bias medio de selección pasa de **−14,4 % (2025) a −31,8 % (2026)**; el nivel de la red baja **−0,31 en log** (frecuencia −0,08, tamaño −0,24). En Pasto el Bias propio pasa de +2 % a −80 %. CALI/TDV004 existe desde mayo de 2026, pesa 0,42 % del volumen y tiene WAPE 156,8 %.
+  - **Causas del sesgo (chequeo, igual a la hoja 03: WAPE 51,60 %, Bias −42,97 %):** los megapuntos esporádicos explican el **49,2 %** del sesgo (sin ellos el Bias queda en −13,5 %) y **CALI/TDV001 concentra el 63,6 %**. Cascada del Bias: **−42,97 %** completo → −33,19 % sin el 27-ago → −29,10 % sin además el 18-ago → **−8,57 % en días normales**. El pronóstico no tiene ninguna variable sobre el estado de los puntos (importancias: festivos 55 %, día de semana 15 %, `festivo_detalle` 12 %).
+  - **Recomendaciones (sin implementar):** P3 variables de estado de los puntos (231 pares callados); P4 nivel reciente robusto; P5 pérdida cuantil o expectil con bandas asimétricas; P6 megapuntos como componente aparte, sobre todo como insumo de M6. Además, SUP-17 (perfil propio de CALI/TDV004 encogido al de la ciudad) y SUP-20 con factor por fondo encogido, porque el sesgo está en TDV001. El EDA respalda dejar M5 en la mediana y corregir en M6; lo que falta es información de los puntos.
 - Nada de esto está en el repo.
 
 ### 6.6 Imputación de faltantes (19–21-oct) — evaluada y no adoptada
@@ -427,6 +499,15 @@ El usuario pidió explícitamente **no perder este material**: no mejoró los mo
 | SUP-24 a SUP-26 (`origen_dato`) | No cambia cifras; 0 filas REAL | `origen_dato` |
 | Champions ML (SUP-39) | §4.4 | `campeones_ml` |
 | Textos de la hoja 04 (SUP-24 a SUP-40) | — | `supuestos_alx` |
+| **v2:** cajeros de sucursal en M6 (SUP-12) | Ingresos de la hoja 05 +42,21 mil M y salidas +109,11 mil M COP; ventas 169 → 148 | `m6_cajeros_sucursal` |
+| **v2:** tarifa MF interurbano (SUP-21) | M2 +3.936.535 COP (61 acciones de 5 MF) | `m2_tarifa_interurbana` |
+| **v2:** escala desde `Escalas` (SUP-22) | M3 −6.757.937 COP (sucursal 70) | `m3_escala_anexo_a` |
+| **v2:** riesgo antes de la acción y cupo insuficiente (SUP-42, SUP-44) | Hoja 02: 1.098 alto, 1.216 medio, 271 bajo (v1 todo bajo) | `nivel_riesgo_previo` |
+| **v2:** monto mínimo de recolección (SUP-43) | M3: 432 → 425 recolecciones; costo de M3 147,65 → 140,26 M COP (con SUP-22) | `monto_minimo_recoleccion` |
+| **v2:** operaciones de RN-84 (SUP-14) | Solo textos: 0 cambios de denominación o intercambio en v1 y v2 | `m6_operaciones_rn84` |
+| **v2:** traslado al día siguiente (SUP-52) | Traslados 105 → 99 frente a la v2 preliminar; 4 retiros BanRep; costo de M6 545.413 → 1.441.530 COP | `m6_traslado_t1` |
+| **v2:** tarifa de traslado declarada (SUP-53) | Solo textos y la métrica `costo_traslado_tarifa_destino` (938.560 COP) | `m6_tarifa_traslado_declarada` |
+| **v2:** hoja 04 y textos de la hoja 03 | 80 celdas de la hoja 04 reescritas; 49 `comentarios` y 105 `metodologia_validacion` de la hoja 03; ningún valor predictivo cambia | `hoja04_v2`, `hoja03_textos_v2` |
 
 ### 6.8 MLflow y cadena de verificación hasta el Excel
 
@@ -434,20 +515,30 @@ El usuario pidió explícitamente **no perder este material**: no mejoró los mo
 - Model Registry `poc-daas-ml-<serie>` con alias `@champion` (v5, salvo m3_salidas y m5 en v4) y `@challenger`; clase `ml.pronosticar.PronosticadorEscenario`. Las versiones de la fase 2 quedan con tag `estado = obsoleta`. También 7 SARIMA `poc-daas-sarima-<serie>@referencia`.
 - **Cadena verificada:** (i) registro = arnés S1 en 28/28 comparaciones (≤ 1e-6); (ii) pipeline = arnés S1 en el chequeo (diferencia relativa 0 en seis datasets y 4·10⁻¹⁸ en M3 `entradas`); (iii) pipeline con todos los interruptores apagados = Excel de Santiago (105/105 filas de la hoja 03; hojas 01, 02, 04, 05 y 06 iguales celda a celda). Toda diferencia con Santiago la causa un interruptor de ALX.
 - **El pipeline de este repo no usa MLflow** para pronosticar: corre las recetas congeladas (SUP-39). `lab/tracking/mlflow_tracking.py` está en el repo solo porque `ml/pronosticar.py` importa de él `PronosticadorPanel` y `a_matriz` (requiere el paquete `mlflow`, pero no levanta servidor ni escribe store).
-- Pruebas: no están en el repo (decisión del usuario). En `ALX/`: `ALX/pipeline/tests` 325 en verde, `ALX/tests_alx` + `ALX/lab/tests` 260. **[Contradicción resuelta]** Hubo conteos inconsistentes del pipeline (339 / 323 / 344); el correcto al 21-oct es 325 (344 fue una invocación conjunta con `tests_alx`; 339 no tiene evidencia).
+- Pruebas: no están en el repo (decisión del usuario). En `ALX/`: `ALX/pipeline/tests` 325 en verde, `ALX/tests_alx` + `ALX/lab/tests` 260 (21-oct). Con la v2 (26-oct): `ALX/pipeline/tests` 326 y `ALX/tests_alx` + `ALX/lab/tests` 301, todas en verde (incluye `ALX/tests_alx/test_correcciones_v2.py`, que valida los interruptores y el registro de supuestos). **[Contradicción resuelta]** Hubo conteos inconsistentes del pipeline (339 / 323 / 344); el correcto al 21-oct es 325 (344 fue una invocación conjunta con `tests_alx`; 339 no tiene evidencia).
 
 ### 6.9 Dónde está cada material (fuera del repo, en `ALX/`)
 
 | Material | Ruta en el Drive | Estado |
 |---|---|---|
-| EDA agregado (8-oct) y EDA por serie | `ALX/01_series_de_tiempo.ipynb`, `ALX/graficos_poc.py`, `ALX/eda/` | Análisis |
+| EDA agregado (8-oct) | `ALX/01_series_de_tiempo.ipynb`, `ALX/graficos_poc.py` | Análisis |
+| EDA Box-Jenkins v2 de M1–M6 (24-oct): identificación sin estimar modelos, conclusiones por modelo (§10) y qué variables importan (§9) | `ALX/eda/03_eda_box_jenkins_v2.ipynb`, `ALX/eda/eda_bj.py` | Análisis, **vigente** (§6.2) |
+| EDA dedicado de M5 (25-oct): concentración, colas, megapuntos, cambio de 2026 y descomposición del sesgo | `ALX/eda/04_eda_m5.ipynb`, `ALX/eda/eda_m5.py`; resumen en `Mi unidad/PoC-Bancolombia/.agents/tasks/eda-m5/final_report.md` | Análisis (§6.5) |
+| EDA por serie (18-oct) | `ALX/eda/02_eda_series_box_jenkins.ipynb` y sus módulos (`box_jenkins.py`, `calcular_indicadores.py`, `graficos_bj.py`, `construir_notebook_02.py`, `resultados/`) | Análisis, **superado por el 03** |
 | SARIMA | `ALX/sarima/` | Descartado |
 | Fase 2 ML (entrenamiento, adopción, MLflow) | `ALX/ml/` | Adoptado (en el repo solo `ml/pronosticar.py` y `ml/__init__.py`) |
 | Imputación | `ALX/imputacion/` | No adoptada (en el repo solo `contexto_asof.py`, `datos.py`, `__init__.py`) |
 | M5: diagnóstico y v2 | `ALX/plan_mejora_m5.md`, `ALX/m5_mejora/` | No adoptado |
 | Laboratorio de Santiago (arnés, conformal, simuladores, explicabilidad, handoff, pruebas, conf) | `ALX/lab/` | En el repo solo `lab/forecasting/`, `lab/tracking/mlflow_tracking.py`, `lab/conf/experimentos/`, `lab/conf/bandas.yml` |
 | Registros del laboratorio de Santiago | `ALX/resultados/*.jsonl` | Histórico |
-| Supuestos completos | `ALX/pipeline/docs/supuestos.md`, `ALX/Supuestos-Analiticos-PoC-DaaS-Bancolombia.pdf` | Vigente (registro) |
+| Supuestos completos | **En el repo** desde la v2: `pipeline/docs/supuestos.md` (copia idéntica de `ALX/pipeline/docs/supuestos.md`). Guía de lectura `ALX/guia_supuestos.md` (pre-v2) | Vigente, versión final |
+| Supuestos de Andrés | `Mi unidad/PoC-Bancolombia/revision-andres/`, `ALX/Supuestos-Analiticos-PoC-DaaS-Bancolombia.pdf` | **No se usan** (decisión del 26-oct) |
+| Variables por modelo | `ALX/variables_por_modelo.md` | Consulta (champions vigentes, sin cambios en v2) |
+| Auditoría del pliego (26-oct) | `Mi unidad/PoC-Bancolombia/.agents/tasks/auditoria-pliego/auditoria.md` | Origen de las correcciones v2 |
+| Correcciones v2: plan, verificación, revisión y evidencia | `Mi unidad/PoC-Bancolombia/.agents/tasks/correcciones-v2/`; corridas A2/B2 y scripts `verificar_v2.py`, `verificar_t1.py`, `comparar_v2.py` en `~/.cache/poc-daas/corrida_entrega_v2/` | Evidencia |
+| Respaldo de la v1 | `ALX/entrega/historico/v1_2026-10-21/` (y commit `955115d` de este repo) | Histórico |
+| Contexto de la v2 para Andrés | `ALX/entrega/CONTEXTO_v2_para_Andres.md` | Comunicación interna; no entra al repo |
+| Anexos A, B y C originales | `~/Desktop/datos-anexo-poc-bancolombia/` (equipo original) | Recibidos; la corrida no los lee |
 | Resto del pipeline (pruebas, `corrida_local.sh` de Santiago, `conf/aws.yml`, `conf/contracts/`, lock antiguo, `recommender.py`, `schemas.py`) | `ALX/pipeline/` | No usado por la corrida |
 | Publicación S3 (README, inventario del bucket, pruebas, revisiones r1/r2 y VersionId) | `ALX/publicacion_s3/` | En el repo solo `publicar.py` |
 | HUs y handoff del arquitecto | `ALX/consumo-pronosticos/` | En el repo solo los 4 OpenAPI |
@@ -460,11 +551,30 @@ El usuario pidió explícitamente **no perder este material**: no mejoró los mo
 
 ---
 
-## 7. Publicación en S3 (`v0_provisional`)
+## 7. Publicación en S3 (`v2` vigente, `v0_provisional` = v1)
 
 ### 7.1 Qué hay publicado
 
-`s3://poc-daas-bancolombia-777937796305/output/pronosticos/v0_provisional/` (perfil `alx-mx`), **revisión 2 del 22-oct-2026**, 248 objetos, 9,6 MB. La genera `publicacion_s3/publicar.py generar <carpeta local>` a partir de `entrega/output_api/` y del Excel de `entrega/`; el script aborta si el sha256 del Excel no empieza por `52e7547fce59105a`, si la simulación recalculada no reproduce recomendaciones y alertas o si el disponible no coincide con el saldo inicial de M6. Lee a memoria del bucket destino `interim/cp_historico`, `interim/oficinas`, `interim/cp_desinstalados`, `processed/m1_atm_dispensador`, `processed/m2_atm_multifuncional`, `processed/m3_sucursales`, `processed/m6_fondos` y `processed/_dim/dim_fondo`, e importa lógica de `daas` sin reentrenar.
+Dos prefijos en el bucket destino (perfil `alx-mx`), uno por entrega, y un puntero (`Mi unidad/PoC-Bancolombia/.agents/tasks/publicacion-s3-v2/reporte.md`; `ALX/publicacion_s3/README.md`; `ALX/estructura_pronosticos_s3.md`):
+
+| Prefijo / clave | Entrega | Estado |
+|---|---|---|
+| `s3://poc-daas-bancolombia-777937796305/output/pronosticos/v2/` | v2 (Excel `167a52e4…`) | **Vigente.** Revisión 1, publicada el 26-oct-2026 19:37 (hora Colombia): 249 objetos, 10.401.803 B; `manifest.json` sha256 `967eac4b8f99b9cf406494c5b09d522a1e5acdf707f4c326a6300b6327a12bf1` |
+| `s3://poc-daas-bancolombia-777937796305/output/pronosticos/version_vigente.json` | — | Puntero (1.210 B, VersionId `5YGrpL.w3gjBS8xPLTBDWnUbaij4NqqD`): `version_vigente = v2`, prefijo, manifest y su sha256, `n_objetos` 249, sha256 y copia del Excel, y `version_anterior` (`v0_provisional`, entrega v1, Excel `52e7547f…`). Los consumidores deben leer este puntero y luego el `manifest.json` del prefijo |
+| `s3://poc-daas-bancolombia-777937796305/output/pronosticos/v0_provisional/` | v1 (Excel `52e7547f…`) | Anterior, conservada sin cambios: revisión 2 del 22-oct (248 objetos del manifest) más `anexo_d/POC_Efectivo_PRAGMA_v1.xlsx` subido aparte el 24-oct = 249 objetos; mismos ETag antes y después de publicar la v2 |
+
+Los dos prefijos tienen la misma estructura y las mismas 249 claves relativas salvo el Excel de `anexo_d/` (`_v1` frente a `_v2`). En la v2 el Excel sí está en el manifest (248 archivos listados); en `v0_provisional` no (247).
+
+**Cómo se genera.** `publicacion_s3/publicar.py` está parametrizado por versión (`--version` o `PUBLICAR_VERSION`; por defecto `v2`):
+- `generar <salida> --version v2`: fuente `entrega/output_api` + Excel `entrega/POC_Efectivo_PRAGMA.xlsx` (exige el sha256 completo `167a52e4…`); insumos (`interim/`, `processed/`) de la corrida local B2 que generó la v2 (`~/.cache/poc-daas/corrida_entrega_v2/B2_v2/`, `DAAS_CONF=B2_v2/conf`, `DAAS_SCHEME=local`; **no lee S3**); copia el Excel a `anexo_d/POC_Efectivo_PRAGMA_v2.xlsx`; el manifest guarda `insumos_locales` y `conf` con sus sha256.
+- `generar <salida> --version v0_provisional`: reproduce la publicación de la v1 (247/247 archivos con el mismo sha256) desde el respaldo `entrega/historico/v1_2026-10-21/`, insumos de S3 y el `alx.yml` v1 (`~/.cache/poc-daas/corrida_entrega_v2/A2_v1/conf`). Esas rutas **no están en el repo**.
+- `verificar <descarga>`: compara bytes y sha256 contra el manifest.
+- `subir <salida> [--dry-run]` (boto3): solo escribe claves bajo `output/pronosticos/v2/` y la clave `output/pronosticos/version_vigente.json`; exige que ambos destinos estén vacíos (sin objetos, versiones ni delete markers), que la salida coincida con su manifest y que sea de la versión; sube con `ChecksumSHA256`; nunca borra; se niega con `--version v0_provisional`. Como la v2 ya está publicada, hoy se detiene sin escribir.
+- La simulación M1–M3 recalculada incluye el monto mínimo de recolección de M3 (SUP-43) cuando el interruptor está encendido.
+
+Verificación de la publicación v2 (reporte): 249/249 objetos descargados con el sha256 esperado (también el `ChecksumSHA256` de S3); `fuente.archivos` = sha256 de los 6 parquet de `entrega/output_api`; Excel de `anexo_d/` = `167a52e4…`; la simulación recalculada reproduce las 2.523 recomendaciones y las 2.297 alertas de M1–M3; métricas = hoja 03 (35/35 ciudad × bloque y 21/21 globales); 1.176 instancias OpenAPI con 0 errores de esquema. Desde la copia limpia de este repo, `generar --version v2` reproduce 248/248 archivos con el sha256 publicado (README §9.3).
+
+**Revisión 2 de `v0_provisional` (v1, 22-oct), como referencia histórica.** La generó la versión anterior de `publicar.py` a partir de `entrega/output_api/` y del Excel v1; abortaba si el sha256 del Excel no empezaba por `52e7547fce59105a`, si la simulación recalculada no reproducía recomendaciones y alertas o si el disponible no coincidía con el saldo inicial de M6. Leía a memoria del bucket destino `interim/cp_historico`, `interim/oficinas`, `interim/cp_desinstalados`, `processed/m1_atm_dispensador`, `processed/m2_atm_multifuncional`, `processed/m3_sucursales`, `processed/m6_fondos` y `processed/_dim/dim_fondo`, e importaba lógica de `daas` sin reentrenar. Estructura (la de `v2/` es igual, más `anexo_d/` en el manifest):
 
 ```text
 v0_provisional/
@@ -479,11 +589,11 @@ v0_provisional/
   validacion/validacion_openapi.json, verificaciones.json
 ```
 
-- `tablas/`: predicciones 10.230 filas, alertas 2.590, recomendaciones 2.923, metricas 46, backtest 15.804, silenciosos 15. Sus sha256 coinciden 6/6 con `entrega/output_api/`.
+- `tablas/` de `v0_provisional`: predicciones 10.230 filas, alertas 2.590, recomendaciones 2.923, metricas 46, backtest 15.804, silenciosos 15 (las de la v1, commit `955115d`). En `v2/`: alertas 2.547, recomendaciones 2.897, metricas 50, el resto igual. Las tablas son reparticionadas (Hive): su sha256 no es el de los parquet fuente; la correspondencia se prueba con `fuente.archivos` del manifest.
 - `api/`: JSON con la forma del payload (`data`) de los contratos OpenAPI del arquitecto (`consumo-pronosticos/contratos/*.yaml`, flujos B, C, D y E), sin la envoltura `statusCode/...`. 1.176 instancias validan con **0 errores de esquema**. 646 series, 520 entidades con saldo simulado (423 cajeros, 53 multifuncionales, 44 sucursales), 6 fondos, 2.590 alertas.
 - La revisión 2 tomó los contratos del arquitecto como especificación dominante y cerró las brechas de la r1 (ciudad en M1–M3, `disponibleObservado` de M6 36/36 = saldo inicial, saldo diario simulado, métricas por ciudad × bloque 35/35 y 21/21 iguales a la hoja 03, `diaCruce`/`servicioSugerido` 520/520, `fondoId` como `CIUDAD|TDV_00X` incluida TDV_004, criticidad del catálogo A-101…A-108, `tipoDato` SIMULADO). Se subió con `aws s3 sync --delete` **solo a ese prefijo** y se verificó por sha256.
-- **Es una estructura PROVISIONAL** hasta que el arquitecto entregue la especificación de almacenamiento (formato, particionado, envoltura, nombre de versión, valor real de `corrida`, hoy `"0007"`). Política de versiones propuesta: prefijo por versión (`v0_provisional` → `v1`…), cada revisión sobrescribe la anterior y el versionado del bucket conserva el historial.
-- Volver a la revisión 1: el bucket tiene versionado; el VersionId del `manifest.json` de r1 es `Fz0ZPux6iCZu6ZHNywyI8SiXcT8ZpvHL` (r2: `nvqHItw6rn3_bbH8b3MTU11o8ZxWeczZ`) y las 242 VersionId de r1 están en `ALX/publicacion_s3/revision/r2/versiones_revision1.tsv`. **[Contradicción resuelta]** La r1 tenía 242 objetos; la vigente (r2) 248 (247 archivos listados en el manifest + el manifest).
+- **Es una estructura PROVISIONAL** hasta que el arquitecto entregue la especificación de almacenamiento (formato, particionado, envoltura, nombre de versión, valor real de `corrida`, hoy `"0007"`). Política de versiones aplicada desde la v2: un prefijo por entrega (`v0_provisional` = v1, `v2`), las versiones anteriores no se borran ni se sobrescriben y `version_vigente.json` dice cuál es la vigente.
+- Volver a la revisión 1: el bucket tiene versionado; el VersionId del `manifest.json` de r1 es `Fz0ZPux6iCZu6ZHNywyI8SiXcT8ZpvHL` (r2: `nvqHItw6rn3_bbH8b3MTU11o8ZxWeczZ`) y las 242 VersionId de r1 están en `ALX/publicacion_s3/revision/r2/versiones_revision1.tsv`. **[Contradicción resuelta]** La r1 tenía 242 objetos; la r2, 248 (247 archivos listados en el manifest + el manifest), y hoy `v0_provisional/` tiene 249 por el Excel v1 que se subió aparte el 24-oct.
 
 ### 7.2 Discrepancias declaradas y preguntas al arquitecto
 
@@ -491,7 +601,7 @@ Nueve discrepancias semánticas declaradas (DS-1 a DS-9) y 11 preguntas con opci
 
 ### 7.3 `output/api/` y `output/anexo_d/` de los buckets NO son lo vigente
 
-En **ambos** buckets, `output/api/` (predicciones, recomendaciones, alertas, metricas, esquemas, `optimizacion_m6.json` y `output/api/anexo_d/POC_Efectivo_PRAGMA.xlsx`) es la salida del **9-oct-2026 del pipeline de Andrés**; su Excel tiene sha256 **`6e781aaaab841de43e6adcfd9bf57204b29f3caf2741e2f7021c603a14a73a78`** (ETag `135e26638e9d3c419b45490adda97a68`, 561.969 B). `output/anexo_d/POC_Efectivo_PRAGMA.xlsx` de la réplica es del 8-oct (sha256 `515ab9d9…`). Ninguno es el entregable `52e7547f…`. Una verificación anterior que comparó el md5 local contra ese ETag dio una falsa alarma por eso. **No consumas `output/api/` como pronóstico vigente**: la publicación vigente es `output/pronosticos/v0_provisional/`.
+En **ambos** buckets, `output/api/` (predicciones, recomendaciones, alertas, metricas, esquemas, `optimizacion_m6.json` y `output/api/anexo_d/POC_Efectivo_PRAGMA.xlsx`) es la salida del **9-oct-2026 del pipeline de Andrés**; su Excel tiene sha256 **`6e781aaaab841de43e6adcfd9bf57204b29f3caf2741e2f7021c603a14a73a78`** (ETag `135e26638e9d3c419b45490adda97a68`, 561.969 B). `output/anexo_d/POC_Efectivo_PRAGMA.xlsx` de la réplica es del 8-oct (sha256 `515ab9d9…`). Ninguno es el entregable (ni la v1 `52e7547f…` ni la v2 `167a52e4…`). Una verificación anterior que comparó el md5 local contra ese ETag dio una falsa alarma por eso. **No consumas `output/api/` como pronóstico vigente**: la publicación vigente es `output/pronosticos/v2/` (ver `output/pronosticos/version_vigente.json`); `v0_provisional/` es la v1.
 
 ---
 
@@ -514,16 +624,16 @@ cd /tmp && OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 VECLIB_MAXIMUM_THREADS=1 MKL
 cd /tmp && PYTHONDONTWRITEBYTECODE=1 "$REPO/.venv/bin/python" "$REPO/scripts/comparar_salidas.py" \
   "$REPO/entrega/output_api" "$REPO/entrega/POC_Efectivo_PRAGMA.xlsx" \
   "$TRABAJO/data/output/api" "$TRABAJO/data/output/anexo_d/POC_Efectivo_PRAGMA.xlsx"
-cd /tmp && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO:$REPO/pipeline/src" AWS_PROFILE=alx-mx \
-  "$REPO/.venv/bin/python" "$REPO/publicacion_s3/publicar.py" generar "$HOME/.cache/poc-daas/repo_v0_provisional"
+cd /tmp && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$REPO:$REPO/pipeline/src" \
+  "$REPO/.venv/bin/python" "$REPO/publicacion_s3/publicar.py" generar "$HOME/.cache/poc-daas/repo_pub_v2" --version v2
 ```
 
 Qué hace cada uno:
 1. `uv sync --frozen` (desde la raíz del repo; luego `REPO=$PWD`): crea `.venv` con las versiones exactas.
 2. `scripts/descargar_raw.sh`: `aws s3 cp` recursivo de `s3://poc-daas-bancolombia-replica-903641686926/raw/` a datos/raiz/raw (carpeta ignorada por git) con el perfil `alx-poc` (variable `AWS_PROFILE_RAW` para otro perfil, `AWS_BIN` para otro binario) y luego, desde `datos/raiz`, verifica los 19 archivos con `shasum -a 256 -c` contra `scripts/raw.sha256`.
 3. `pipeline/corrida_entrega.sh <raiz> <trabajo> [python]`: corre U0 → U7 (`python -m daas.pipeline.run_u0` … `run_u7`). **Borra `"$TRABAJO/data"` y `"$TRABAJO/conf"` al iniciar** (usa una carpeta dedicada), copia la raíz y `pipeline/conf`, reescribe `paths.yml` a `default_scheme: local`, exporta `DAAS_SCHEME=local`, quita `DAAS_S3_BUCKET` y, antes de cada unidad, aborta si alguna ruta de salida no resuelve a `file://` (registro en `$TRABAJO/rutas.log`). Variables: `UNIDADES` (subconjunto), `REANUDAR=1` (no borra), `CONF_ALX=<otro alx.yml>` (p. ej. todos en `false` = pipeline de Santiago). Unos 15 min (la corrida oficial tardó 898 s). Salidas: `data/output/anexo_d/POC_Efectivo_PRAGMA.xlsx`, `data/output/api/` (6 parquet + `*.meta.json` + `_schemas/`), `data/output/explicabilidad/importancias.parquet`, `interim/`, `processed/`, `features/`, `quality/reports/` y logs `u0.log` … `u7.log`.
-4. `scripts/comparar_salidas.py <ref_api> <ref_xlsx> <nuevo_api> <nuevo_xlsx>`: compara por contenido (parquet y celdas del Excel).
-5. `publicacion_s3/publicar.py generar <carpeta>`: arma `v0_provisional` en local (lee S3 con `alx-mx`; `AWS_PROFILE` lo cambia). Publica **el Excel del repo**, no uno regenerado. `publicar.py verificar <carpeta>` comprueba una descarga contra su manifest. La subida (`aws s3 sync`) **no forma parte del flujo** del repo y no debe ejecutarse para verificar.
+4. `scripts/comparar_salidas.py <ref_api> <ref_xlsx> <nuevo_api> <nuevo_xlsx>`: compara por contenido (parquet y celdas del Excel). Con las rutas del README compara contra la v2 de `entrega/`. Para reproducir la v1 con el código actual: `CONF_ALX` = el `alx.yml` del commit `955115d` (sha256 `e841aca2…6832`) y referencia = `entrega/` de ese commit.
+5. `publicacion_s3/publicar.py generar <carpeta> --version v2`: arma la publicación v2 en local con los insumos de `~/.cache/poc-daas/corrida_entrega_v2/B2_v2/` (sin S3). En un equipo sin esa carpeta, corre el paso 3 con `TRABAJO=$HOME/.cache/poc-daas/corrida_entrega_v2/B2_v2` (borra `data/` y `conf/` ahí). Publica **el Excel del repo**, no uno regenerado, y exige su sha256 completo. `publicar.py verificar <carpeta>` comprueba una descarga contra su manifest. `publicar.py subir` **no forma parte del flujo de reproducción** y no debe ejecutarse para verificar (la v2 ya está publicada; ver §7.1).
 
 Unidades del pipeline: U0 ingesta raw → interim, calidad, curado → processed, features y costos del Anexo E; U1/U2 M1 y M2 (pronóstico, simulación de saldo, provisiones, recolecciones, alertas); U3 M3; U4/U5 M4 y M5; U6 M6; U7 contratos `output/api/*`, Excel del Anexo D y `validate_xlsx`.
 
@@ -531,7 +641,9 @@ Unidades del pipeline: U0 ingesta raw → interim, calidad, curado → processed
 
 Una corrida nueva **no** reproduce el sha256 del Excel: el xlsx guarda la fecha de generación (`docProps/core.xml`) y los floats llevan ruido de ~1e-7 por sumas paralelas (Prophet/joblib) y orden de reducción (LightGBM/numpy). Criterio de equivalencia (README §8, el mismo de `ALX/ml/verificar_registro.py`): mismas hojas, filas, columnas y esquema arrow; celdas de texto y fecha idénticas; en numéricas Σ|dif| / Σ|ref| ≤ 1e-6 por columna. Solo `silenciosos.parquet` y los `_schemas/*.json` pueden coincidir byte a byte. `run_id` usa `git rev-parse --short HEAD`; sin commit queda `nogit` (solo afecta a `*.meta.json`).
 
-**Evidencia (corrida auditada del 23-oct-2026, 12:28–12:43, 14 min)** sobre una copia de `ALX/` en `/tmp`, con el venv original (mismas versiones que `uv.lock`), los mismos raw y anexos, y `corrida_entrega.sh` con el hook de auditoría:
+**Evidencia de la v2 (26-oct-2026).** Corrida B2 (la del Excel v2, `~/.cache/poc-daas/corrida_entrega_v2/B2_v2/`, unos 19 min) con el venv original y la misma raíz de datos de la v1 (19/19 sha256): `validate_anexo_d` 0 errores; frente a la v1, hojas 01 y 06 idénticas y 91 métricas predictivas iguales (rtol 1e-12). Corrida A2 (código v2 con el `alx.yml` de la v1): 6 hojas iguales a la v1 salvo `03!F21` (2 ulp). Corrida desde la copia limpia de este repo: README §9.3.
+
+**Evidencia de la v1 (corrida auditada del 23-oct-2026, 12:28–12:43, 14 min)** sobre una copia de `ALX/` en `/tmp`, con el venv original (mismas versiones que `uv.lock`), los mismos raw y anexos, y `corrida_entrega.sh` con el hook de auditoría:
 
 | Salida | Resultado frente a `entrega/` |
 |---|---|
@@ -547,7 +659,9 @@ Conclusión: equivalente; la causa es punto flotante y la marca de tiempo, no mo
 
 ### 8.4 Cómo se regeneró el entregable original
 
-La corrida oficial del 21-oct usó el mismo `corrida_entrega.sh` con la raíz `~/.cache/poc-daas/corrida_entrega/raiz/` (raw copiado del bucket en solo lectura + anexos originales) y escribió en `~/.cache/poc-daas/corrida_entrega/completa/`; luego el Excel y `data/output/api/` se copiaron a `ALX/entrega/`, se validó con `daas.publish.validate_xlsx.validate_anexo_d` y se registró el sha256. Si cambia algo (p. ej. respuestas del banco) y se regenera, el sha256 cambiará y `publicar.py` exigirá actualizar `EXCEL_SHA_PREFIJO`: eso es un cambio de código y de entregable que requiere acuerdo del usuario.
+La corrida oficial del 21-oct usó el mismo `corrida_entrega.sh` con la raíz `~/.cache/poc-daas/corrida_entrega/raiz/` (raw copiado del bucket en solo lectura + anexos originales) y escribió en `~/.cache/poc-daas/corrida_entrega/completa/`; luego el Excel y `data/output/api/` se copiaron a `ALX/entrega/`, se validó con `daas.publish.validate_xlsx.validate_anexo_d` y se registró el sha256. Si cambia algo (p. ej. respuestas del banco) y se regenera, el sha256 cambiará y `publicar.py` exigirá actualizar el sha256 esperado (en la versión del 23-oct, `EXCEL_SHA_PREFIJO`; hoy, `excel_sha256` de `PUBLICACIONES`): eso es un cambio de código y de entregable que requiere acuerdo del usuario.
+
+La v2 del 26-oct se generó igual (corrida B2 con `ALX/pipeline/corrida_entrega.sh`, raíz `~/.cache/poc-daas/corrida_entrega_v2/raiz/`, idéntica a la de la v1), se copió a `ALX/entrega/` tras respaldar la v1 en `ALX/entrega/historico/v1_2026-10-21/`, se validó con `validate_anexo_d` y se registró el sha256 `167a52e4…`. Para publicarla, `publicar.py` pasó a parametrizarse por versión (`PUBLICACIONES`, con el sha256 completo de cada Excel) y la v2 se subió a `output/pronosticos/v2/` (§7.1).
 
 ---
 
@@ -558,7 +672,7 @@ La corrida oficial del 21-oct usó el mismo `corrida_entrega.sh` con la raíz `~
   | Perfil | Cuenta | Rol | Uso |
   |---|---|---|---|
   | `alx-poc` | 903641686926 | `AWSBedrockFullAccess` | Réplica en **solo lectura** (descarga de `raw/`; también `datos_poc.py`) |
-  | `alx-mx` | 777937796305 | `Ps-HackatonAgentic-Mexico` | Bucket destino: lo lee `publicar.py`; ahí está `v0_provisional` |
+  | `alx-mx` | 777937796305 | `Ps-HackatonAgentic-Mexico` | Bucket destino: aloja `output/pronosticos/v2/` (vigente), `version_vigente.json` y `v0_provisional/` (v1); lo lee `publicar.py --version v0_provisional` |
 
   (En la bitácora aparece también un perfil `alx-dev`, misma cuenta y rol que `alx-poc`; el repo no lo usa.) Si en tu equipo los perfiles se llaman distinto, usa `AWS_PROFILE_RAW=<perfil>` para `descargar_raw.sh` y `AWS_PROFILE=<perfil>` para `publicar.py`. Permisos mínimos: `s3:ListBucket` y `s3:GetObject` en ambos buckets.
 - **Incidencia conocida: dos identidades en el mismo portal.** El dueño del trabajo tiene un usuario del portal para la herramienta de IA (Kiro) y otro, con acceso a las cuentas de datos. El navegador guarda una sola sesión del portal: si el login de la terminal se completa en el navegador donde está la otra identidad, queda con el usuario equivocado (`ForbiddenException ... No access`); y cerrar sesión para cambiar invalida los tokens de la otra herramienta (así se cayó un workflow el 20-oct con `No valid token found`). Procedimiento que funcionó (20-oct y 23-oct), lo ejecuta **la persona, nunca un agente** (comandos del README §5.2):
@@ -572,13 +686,13 @@ aws sts get-caller-identity --profile alx-mx    # Account 777937796305 (misma se
 - Abrir la URL y el código del device flow en una **ventana privada o un perfil de Chrome separado** con la identidad de datos.
 - **Nunca ejecutar `aws sso logout`**: revoca la sesión en el servidor e invalida los tokens de otras herramientas. Cuando la sesión venza, repetir solo el login.
 - **Para agentes:** no ejecutes `aws sso login`, `aws sso logout` ni `aws configure sso`. Si las credenciales vencen, pausa y pide a la persona que renueve la sesión (README §5.2).
-- **S3 es solo lectura** para todo el flujo del repo (`ls`, `head-object`, `cp` S3 → local). La única escritura que se hizo en S3 fue la publicación de `v0_provisional` del 22-oct (manual, con `alx-mx`, solo a ese prefijo).
+- **S3 es solo lectura** para todo el flujo del repo (`ls`, `head-object`, `cp` S3 → local). Las únicas escrituras que se hicieron en S3 fueron la publicación de `v0_provisional` del 22-oct (con el Excel v1 agregado el 24-oct) y la de `v2/` + `version_vigente.json` del 26-oct (con `publicar.py subir`, aprobada por el usuario), todas con `alx-mx`.
 
 ---
 
 ## 10. Mapa del repo archivo por archivo
 
-232 archivos versionados (los 231 iniciales + este). Toda ruta entre comillas invertidas de esta sección es un archivo versionado (existe en `git ls-files`); lo que no está versionado (carpetas generadas o ignoradas) se escribe sin comillas invertidas. La raíz del repo equivale a la raíz de la carpeta ALX (no muevas carpetas: varios módulos localizan la raíz por posición relativa).
+235 archivos versionados (los 231 iniciales + este + 3 de la v2: `pipeline/docs/supuestos.md`, `pipeline/src/daas/publish/anexo_d/sheet_04_v2.py` y `entrega/CAMBIOS_v2.md`). Toda ruta entre comillas invertidas de esta sección es un archivo versionado (existe en `git ls-files`); lo que no está versionado (carpetas generadas o ignoradas) se escribe sin comillas invertidas. La raíz del repo equivale a la raíz de la carpeta ALX (no muevas carpetas: varios módulos localizan la raíz por posición relativa).
 
 ### 10.1 Raíz, entorno y scripts
 
@@ -602,11 +716,12 @@ aws sts get-caller-identity --profile alx-mx    # Account 777937796305 (misma se
 |---|---|
 | `datos/raiz/anexos/Anexos/Anexo_D_Plantilla_entrega_proveedor_POC.xlsx` | Plantilla original del Anexo D (sha256 `a247fae7…`); la usa U7 |
 | `datos/raiz/anexos/Anexos/Anexo_E_Parametros costos.xlsx` | Parámetros de costos originales del Anexo E (sha256 `caaa399c…`; nombre con espacio); lo lee U0 (contrato C-12) |
-| `entrega/POC_Efectivo_PRAGMA.xlsx` | Excel entregado (sha256 `52e7547f…4688`). Referencia de comparación y entrada obligatoria de `publicacion_s3/publicar.py` |
+| `entrega/POC_Efectivo_PRAGMA.xlsx` | Excel entregado v2 (sha256 `167a52e4…9461`). Referencia de comparación. Entrada de `publicacion_s3/publicar.py --version v2`, que exige su sha256 completo `167a52e4…` |
+| `entrega/CAMBIOS_v2.md` | Cambios v1 → v2: interruptores, cifras por fondo, costos, reproducción de la v1 y pendientes |
 | `entrega/output_api/predicciones.parquet` | 10.230 filas: pronóstico por entidad-día con `band_low`/`band_high` y `origen_dato` |
-| `entrega/output_api/recomendaciones.parquet` | 2.923 filas: acciones de M1–M3 y M6 con monto, costo y saldos |
-| `entrega/output_api/alertas.parquet` | 2.590 alertas |
-| `entrega/output_api/metricas.parquet` | 46 filas de métricas (incluye lecturas RN-08 y bloque `sesgo_red_origen`) |
+| `entrega/output_api/recomendaciones.parquet` | 2.897 filas: acciones de M1–M3 y M6 con monto, costo y saldos |
+| `entrega/output_api/alertas.parquet` | 2.547 alertas (M1 1.349, M2 749, M3 199, M6 250) |
+| `entrega/output_api/metricas.parquet` | 50 filas de métricas (incluye lecturas RN-08, bloque `sesgo_red_origen` y, desde la v2, `recoleccion_omitida_monto`, `cajeros_sucursal_mapeados`, `flujo_sin_fondo` y `costo_traslado_tarifa_destino`) |
 | `entrega/output_api/backtest.parquet` | 15.804 filas del backtest 17–31 ago |
 | `entrega/output_api/silenciosos.parquet` | 15 entidades sin dato reciente y su tratamiento |
 | `entrega/output_api/_schemas/predicciones.json`, `entrega/output_api/_schemas/recomendaciones.json`, `entrega/output_api/_schemas/alertas.json`, `entrega/output_api/_schemas/metricas.json`, `entrega/output_api/_schemas/backtest.json`, `entrega/output_api/_schemas/silenciosos.json` | Esquemas versionados de cada contrato |
@@ -618,21 +733,22 @@ La carpeta datos/raiz/raw no está versionada: la llena `scripts/descargar_raw.s
 | Ruta | Rol |
 |---|---|
 | `pipeline/corrida_entrega.sh` | **Punto de entrada** U0 → U7 en modo local (ver §8.2) |
-| `pipeline/conf/alx.yml` | Interruptores de ALX (todos `true` salvo `imputacion: false`) |
+| `pipeline/conf/alx.yml` | Interruptores de ALX: los 7 de la v1 y los 10 de la v2 en `true`, `imputacion: false` (README §3) |
+| `pipeline/docs/supuestos.md` | Registro final de supuestos SUP-01..SUP-53 (v2); lo citan el código, la configuración y la hoja 04 |
 | `pipeline/conf/paths.yml` | Capas y raíz de datos (`pipeline/corrida_entrega.sh` lo reescribe a `default_scheme: local`) |
 | `pipeline/conf/sources.yml` | Mapa de las 19 fuentes de raw + Anexo E a los contratos C-01..C-12 |
 | `pipeline/conf/dq_rules.yml` | Reglas de calidad, los 27 días del Anexo C y el corte |
 | `pipeline/conf/calendario_co.yml` | Calendario de Colombia |
-| `pipeline/conf/costos.yml` | Reglas de costos del Anexo E (tipologías de cajero y sucursal) |
+| `pipeline/conf/costos.yml` | Reglas de costos del Anexo E (tipologías de cajero y sucursal; MF interurbano y escala de sucursal de la v2) |
 | `pipeline/conf/entity_id_map.yml` | Mapa de identificadores de entidades |
-| `pipeline/conf/export_anexo_d.yml` | Configuración y validación del Excel del Anexo D (textos de la hoja 04, bandas de `nivel_riesgo`) |
+| `pipeline/conf/export_anexo_d.yml` | Configuración y validación del Excel del Anexo D (textos de la hoja 04 y, en la v2, `hoja_04_v2`, `hoja_03_v2`, `textos_v2` y `nivel_riesgo_previo`) |
 | `pipeline/conf/model_u1_u2.yml` | M1 y M2: `forecaster.modelo` (Santiago) y `forecaster.modelo_alx` (champions), política, inactividad, métricas |
 | `pipeline/conf/model_m3.yml` | M3: recetas (`modelo_alx: {entradas: campeon_m3_entradas, salidas: campeon_m3_salidas}`) y política por sucursal |
 | `pipeline/conf/model_u4_u5.yml` | M4 y M5: `modelo_alx: {m4: combo_perfil_gbml1, m5: campeon_m5}` |
-| `pipeline/conf/model_u6.yml` | M6: saldo inicial, mezcla, mínimos/máximos, factor de M5 (`correccion_total`), `correccion_disponibles`, operaciones, decisión y costos |
+| `pipeline/conf/model_u6.yml` | M6: saldo inicial, mezcla, mínimos/máximos, factor de M5 (`correccion_total`), `correccion_disponibles`, operaciones (incluidos `rn84` y `traslado.tarifa_por: origen`), decisión (`traslado_disponible_t1`, `riesgo_residual`) y costos |
 | `pipeline/conf/pronosticadores.yml` | Recetas de pronóstico (incluidas `campeon_*` de la familia `ml_laboratorio`), bandas conformales y textos de enfoque por modelo |
 
-### 10.4 Paquete `daas` (`pipeline/src/daas/`, 94 módulos)
+### 10.4 Paquete `daas` (`pipeline/src/daas/`, 95 módulos)
 
 | Ruta | Rol |
 |---|---|
@@ -708,8 +824,8 @@ La carpeta datos/raiz/raw no está versionada: la llena `scripts/descargar_raw.s
 | `pipeline/src/daas/modules/funds_m6/balance.py` | Balance por fondo y denominación |
 | `pipeline/src/daas/modules/funds_m6/config.py` | Carga de `pipeline/conf/model_u6.yml` |
 | `pipeline/src/daas/modules/funds_m6/correccion_disponibles.py` | Corrección de disponibles detectada en datos (SUP-29) |
-| `pipeline/src/daas/modules/funds_m6/dataset.py` | Insumos de M6 (disponibles, mezcla, mínimos/máximos, factor de M5) |
-| `pipeline/src/daas/modules/funds_m6/simulator.py` | Simulador secuencial de balance y decisiones de M6 |
+| `pipeline/src/daas/modules/funds_m6/dataset.py` | Insumos de M6 (disponibles, mezcla, mínimos/máximos, factor de M5; v2: cajeros de sucursal al fondo, `enabled_operations_matrix`) |
+| `pipeline/src/daas/modules/funds_m6/simulator.py` | Simulador secuencial de balance y decisiones de M6 (v2: traslado T+1 `_anticipate`, tarifa del origen, RN-84) |
 | `pipeline/src/daas/io/__init__.py` | Subpaquete de E/S |
 | `pipeline/src/daas/io/storage.py` | Resolución de URIs daas://&lt;capa&gt;/&lt;dataset&gt; a local o S3 |
 | `pipeline/src/daas/lineage/__init__.py` | Subpaquete de linaje |
@@ -727,7 +843,8 @@ La carpeta datos/raiz/raw no está versionada: la llena `scripts/descargar_raw.s
 | `pipeline/src/daas/publish/anexo_d/sheet_01_predictions.py` | Hoja 01 |
 | `pipeline/src/daas/publish/anexo_d/sheet_02_operational_plan.py` | Hoja 02 |
 | `pipeline/src/daas/publish/anexo_d/sheet_03_metrics.py` | Hoja 03 |
-| `pipeline/src/daas/publish/anexo_d/sheet_04_description.py` | Hoja 04 |
+| `pipeline/src/daas/publish/anexo_d/sheet_04_description.py` | Hoja 04 (con `hoja04_v2` delega en `sheet_04_v2.py`) |
+| `pipeline/src/daas/publish/anexo_d/sheet_04_v2.py` | Hoja 04 v2: textos para el evaluador desde `export_anexo_d.yml` y su validación; exige `supuestos_alx` |
 | `pipeline/src/daas/publish/anexo_d/sheet_05_m6_funds.py` | Hoja 05 |
 | `pipeline/src/daas/publish/anexo_d/workbook.py` | Escritura y validación sobre la plantilla |
 
@@ -754,7 +871,7 @@ La carpeta datos/raiz/raw no está versionada: la llena `scripts/descargar_raw.s
 
 | Ruta | Rol |
 |---|---|
-| `publicacion_s3/publicar.py` | `generar <carpeta>`: arma `v0_provisional` en local (r2); `verificar <carpeta>`: comprueba una descarga contra su manifest. Perfil por defecto `alx-mx` |
+| `publicacion_s3/publicar.py` | Parametrizado por versión (`--version v2` por defecto, o `v0_provisional`). `generar <carpeta>`: arma la publicación en local; `verificar <carpeta>`: comprueba una descarga contra su manifest; `subir <carpeta> [--dry-run]`: publica solo en `output/pronosticos/v2/` y `version_vigente.json`, con destino vacío y sin borrar. Perfil `alx-mx` |
 | `consumo-pronosticos/contratos/openapi-datos-flujo-b.yaml` | OpenAPI del flujo B (series, métricas, saldo simulado) |
 | `consumo-pronosticos/contratos/openapi-datos-plan-flujo-c.yaml` | OpenAPI del flujo C (plan de saldo simulado) |
 | `consumo-pronosticos/contratos/openapi-datos-fondos-flujo-d.yaml` | OpenAPI del flujo D (mapa de fondos) |
@@ -766,31 +883,23 @@ La carpeta datos/raiz/raw no está versionada: la llena `scripts/descargar_raw.s
 
 ### 11.1 Pendientes inmediatos
 
-1. **Commit y push de este repo** a `https://github.com/alexanderpj-ds/poc-bancolombia.git` (rama `main`): los hace el usuario. Hoy todo está staged y sin commit.
-2. Entrega de la PoC el **26-oct-2026**; sustentación presencial en Medellín.
-3. Backend Java y frontend Angular + Power BI: fuera de este repo (§1).
-4. Respuesta del arquitecto a las 11 preguntas (§7.2) y especificación definitiva de almacenamiento; luego, pasar de `v0_provisional` a `v1`.
-5. Decidir si el bucket destino `777937796305` pasa a ser la fuente de datos (hoy la réplica lo es para `raw/`).
-6. Decidir sobre M5: aplicar o no la recomendación SUP-41 de M5 v2 (no cambia el Excel de septiembre) o alguna opción del plan de M5.
-7. Decidir si la hoja 03 publica también el WAPE de M3 sin SUP-02 (hoy está en el comentario y en los documentos; exige regenerar el Excel).
+1. **Commit y push de la actualización v2 de este repo** a `https://github.com/alexanderpj-ds/poc-bancolombia.git` (rama `main`): los hace el usuario. Todo queda staged y sin commit.
+2. ~~Publicar la v2 en S3~~: **hecho** el 26-oct-2026 en `output/pronosticos/v2/` con el puntero `version_vigente.json` (§7.1). Queda pendiente que el arquitecto confirme la estructura definitiva de almacenamiento.
+3. Sustentación presencial en Medellín (la entrega era el **26-oct-2026**).
+4. Backend Java y frontend Angular + Power BI: fuera de este repo (§1).
+5. Respuesta del arquitecto a las 11 preguntas (§7.2) y especificación definitiva de almacenamiento.
+6. Decisiones del usuario abiertas por la v2: alternativa de SUP-44 (segunda atención consolidada en 8667/9311: 4 y 1 provisiones adicionales por 73.047.796 y 18.008.804 COP) y alternativa de SUP-21 (INDIVIDUAL interurbano, +575.069 COP).
+7. Pendientes de texto de la v2 (`entrega/CAMBIOS_v2.md`): citar SUP-20 y SUP-29 en `supuesto_utilizado` de la hoja 05; tildes de los textos heredados de las hojas 02 y 05; salvedad de SUP-09; observaciones no bloqueantes NB-1 a NB-5 de la revisión. Riesgo residual de M3: 31 recolecciones menores de 1 M COP que sí superan su costo.
+8. Pedir al banco `Historico BANREP.xlsx` e `Historico Traslados.xlsx` del Anexo A (SUP-46); con ellos la habilitación de BanRep y traslados se tomaría del histórico real.
+9. Decidir si el bucket destino `777937796305` pasa a ser la fuente de datos (hoy la réplica lo es para `raw/`).
+10. Decidir sobre M5: aplicar o no la recomendación de M5 v2 (SUP-41 reservado; no cambia el Excel de septiembre) o alguna opción del plan de M5.
+11. Actualizar `ALX/guia_supuestos.md` a la v2 (cubre hasta SUP-41).
 
-### 11.2 Preguntas abiertas al banco
+### 11.2 Preguntas al banco convertidas en supuestos
 
-(`ALX/resumen_avances_v2.md` §15.7; `ALX/pipeline/docs/supuestos.md`, "Preguntas abiertas"; `ALX/plan_mejora_m5.md` §6)
-1. ¿Los ceros de sucursales en días hábiles de agosto de 2026 son cierres reales o falta de reporte? (SUP-37)
-2. ¿Cómo trata la métrica oficial una entidad con todos sus reales en 0 en la ventana? (SUP-27)
-3. ¿Cuál es la regla exacta de RN-08? ¿Se puede compartir el Anexo B?
-4. ¿Los disponibles de la TDV_001 están en billetes hasta el 17-jul-2026 y en pesos desde el 21-jul? (SUP-29)
-5. ¿`TOTAL` de la TDV_002 y TDV_003 es el subtotal de las demás calidades? (SUP-29)
-6. ¿Qué son los 23 blancos de `CALI|TRANSPORTADORA_004|50000`? (SUP-29)
-7. En los 30 fondo-días con doble formato, ¿cuál es el oficial? (SUP-29, SUP-09)
-8. ¿Hay que incluir `00_Instrucciones`, `GUIA_Descripcion_Solucion` y `07_Catalogo_Ejemplos`, que la plantilla no trae? (P25, SUP-40)
-9. Puntos 220 (Cali), 276 y 27 (Pasto) y 69 (Ipiales) de M5: ¿depósitos programados? ¿El banco conoce su fecha o monto?
-10. Como M5 alimenta M6, ¿prefiere un M5 centrado (Bias ≈ 0) aunque suba el WAPE?
-11. ¿La evaluación de septiembre incluye los depósitos extraordinarios de clientes?
-12. ¿`CALI|TRANSPORTADORA_004` es una transportadora nueva desde may-2026?
+Con la indicación del banco de suplir con supuestos documentados la información no suministrada, el registro final ya no tiene "Preguntas abiertas": cada duda quedó resuelta por un SUP con su texto literal de respaldo (tabla "Preguntas convertidas en supuestos" de `pipeline/docs/supuestos.md`). Las que antes figuraban aquí quedan así: ceros de sucursales de agosto → SUP-37; entidad con reales en 0 → SUP-27; RN-08 → resuelta por el texto de los Anexos B y C (SUP-02, SUP-50); unidades de la TDV_001, `TOTAL`, blancos de la TDV_004 y doble formato → SUP-29; hojas informativas que la plantilla no trae → SUP-40; fondo de los cajeros de sucursal → SUP-12; MF urbano o interurbano → SUP-21; escala de sucursal → SUP-22; 8667 y 9311 → SUP-44; operaciones de RN-84 → SUP-14; archivos BanRep y Traslados → SUP-46; maestro CP posterior al corte → SUP-45; fecha del traslado → SUP-52; tarifa entre ciudades → SUP-53.
 
-También vigentes de la revisión de datos del 8-oct: la caída de cajeros que reportan del 10 al 25-ago, la vigencia del universo de clientes (529 frente a 344) y la falta de histórico de traslados y de movimientos con BanRep.
+Siguen como temas de conversación con el banco (no bloquean el entregable): los megapuntos de M5 (puntos 220 de Cali, 276 y 27 de Pasto, 69 de Ipiales) y si prefiere un M5 centrado aunque suba el WAPE; si la evaluación de septiembre incluye depósitos extraordinarios de clientes; si `CALI|TRANSPORTADORA_004` es nueva desde may-2026; la caída de cajeros que reportan del 10 al 25-ago y la vigencia del universo de clientes (529 frente a 344).
 
 ### 11.3 Riesgos
 
@@ -805,9 +914,9 @@ También vigentes de la revisión de datos del 8-oct: la caída de cajeros que r
 ### 11.4 Limitaciones del repo
 
 - `uv.lock` solo probado y restringido a macOS arm64.
-- `publicar.py` exige el Excel `52e7547f…` y depende de `interim/` y `processed/` del bucket destino (sesión `alx-mx` vigente).
+- `publicar.py --version v2` depende de los insumos locales de la corrida B2 (`~/.cache/poc-daas/corrida_entrega_v2/B2_v2/`, ruta fija en el script); `--version v0_provisional` depende del respaldo v1 (`entrega/historico/`, fuera del repo) y de `interim/`/`processed/` del bucket destino (sesión `alx-mx` vigente).
 - No hay pruebas automatizadas en el repo (están en `ALX/`).
-- No se repitió desde el repo la corrida completa ni `publicar.py generar` (§8.3).
+- La corrida completa del pipeline v2 y `publicar.py generar --version v2` desde una copia limpia del repo están en el README §9.3; `subir` no se probó desde el repo (la v2 ya está publicada).
 - El repo no trae el laboratorio completo: no se puede re-elegir modelos ni recalibrar bandas desde aquí (eso vive en `ALX/lab/` y `ALX/ml/`).
 
 ### 11.5 Mejoras para después de la entrega
@@ -821,7 +930,7 @@ SUP-09 nuevo (reparto de `pagado` de M1/M2 por gavetas y el resto por mezcla de 
 | Término | Significado |
 |---|---|
 | **ALX** | Carpeta de trabajo de Alexander Peláez en el Drive del proyecto; copia del repo de Santiago más todo el trabajo nuevo. En el código, nombre de la raíz del repo |
-| **Anexo A–E** | Anexos del pliego: A metadatos, B reglas de negocio RN-xx (no recibido), C días sin registro (no recibido como documento), D plantilla del Excel, E costos |
+| **Anexo A–E** | Anexos del pliego, todos recibidos: A metadatos de insumos, B reglas de negocio RN-xx, C observaciones de calidad (días sin registro), D plantilla del Excel, E costos. Del Anexo A no llegaron `Historico BANREP.xlsx` ni `Historico Traslados.xlsx` (SUP-46) |
 | **Anexo C (días)** | 27 días de 2026 sin registro en toda la red de cajeros; siempre NaN, nunca 0 |
 | **Arnés** | Backtest rodante de Santiago (`ALX/lab/evaluation/harness.py`) |
 | **"As of"** | Con la información disponible en la fecha del origen (último snapshot del maestro ≤ origen) |
@@ -867,13 +976,13 @@ SUP-09 nuevo (reparto de `pagado` de M1/M2 por gavetas y el resto por mezcla de 
 | **pp** | Puntos porcentuales de WAPE |
 | **Provisión / recolección** | Llevar efectivo a un punto / retirarlo (servicio de la TDV) |
 | **R1–R5** | Regla de adopción (mejora > k·EE, ninguna celda peor, confirmación, Bias, cobertura) |
-| **RN-xx** | Reglas de negocio del Anexo B, conocidas por el código y la documentación (RN-07 desinstalados; RN-08 ausencia con red operando = 0; RN-34 umbral 8 %; RN-71A sin BanRep/venta/cambio en no hábiles; RN-74 traslados pareados; RN-75 BanRep) |
+| **RN-xx** | Reglas de negocio del Anexo B; el registro de supuestos v2 cita su texto literal (RN-07 desinstalados; RN-08 ausencia con red operando = 0; RN-34 umbral 8 %; RN-71A sin BanRep/venta/cambio en no hábiles; RN-74 traslados pareados; RN-75 BanRep) |
 | **Saldo simulado** | Saldo que evoluciona solo con el pronóstico y las acciones propuestas; no es real |
 | **Selección** | 16 fines de mes (feb-2025 a jun-2026) donde se elige el modelo |
 | **Snapshot** | Copia del maestro en una fecha (`ingestion_year/month/day`) |
-| **SUP-xx** | Supuesto declarado en el registro (`ALX/pipeline/docs/supuestos.md`) |
+| **SUP-xx** | Supuesto declarado en el registro final `pipeline/docs/supuestos.md` (SUP-01..SUP-53; SUP-41 reservado) |
 | **TDV** | Transportadora de valores (TRANSPORTADORA_001 a 004; en `api/` de S3, TDV_001 a TDV_004): custodia los fondos y hace provisiones y recolecciones |
-| **Traslado** | Movimiento de efectivo entre fondos (dos filas pareadas: origen y destino) |
+| **Traslado** | Movimiento de efectivo entre fondos (dos filas pareadas con la misma fecha de ejecución: origen y destino); llega al destino al día siguiente (SUP-52) y entre ciudades se cobra con la tarifa de la TDV del origen (SUP-53) |
 | **U0–U7** | Unidades del pipeline (§8.2) |
 | **V0–V4** | Conjuntos de variables del motor ML global (§4.4) |
 | **Venta de efectivo** | Bancolombia vende billetes a empresas; su beneficio es la tasa histórica (`TASA` por cada 10.000 COP), no un costo del Anexo E |
@@ -895,27 +1004,36 @@ SUP-09 nuevo (reparto de `pagado` de M1/M2 por gavetas y el resto por mezcla de 
 | ¿Cómo se calculan las métricas? | `pipeline/src/daas/forecasting/metrics.py`; §4.2 |
 | ¿Cómo se trata el Anexo C? | `pipeline/conf/dq_rules.yml` y `pipeline/src/daas/quality/anexo_c.py` |
 | ¿Cómo se corrige M6? | `pipeline/src/daas/modules/funds_m6/correccion_disponibles.py`, `simulator.py`, `pipeline/conf/model_u6.yml`; §4.7 |
-| ¿Qué contiene el Excel o los contratos? | `entrega/POC_Efectivo_PRAGMA.xlsx`, `entrega/output_api/`; los generadores en `pipeline/src/daas/publish/` |
-| ¿Cómo se arma la publicación de S3? | `publicacion_s3/publicar.py` y `consumo-pronosticos/contratos/`; §7 |
+| ¿Qué contiene el Excel o los contratos? | `entrega/POC_Efectivo_PRAGMA.xlsx` (v2), `entrega/output_api/`; los generadores en `pipeline/src/daas/publish/` |
+| ¿Cómo se arma la publicación de S3 y cuál es la vigente? | `publicacion_s3/publicar.py` y `consumo-pronosticos/contratos/`; §7 (`v2/` vigente, `version_vigente.json`) |
 | ¿Mi corrida coincide con la entregada? | `scripts/comparar_salidas.py` y el criterio del README §8; §8.3 |
 | ¿Qué pasó con la imputación, SARIMA, el EDA o M5? | §6 de este documento; el detalle está en `ALX/` (Drive), empezando por `ALX/resumen_avances_v2.md` |
-| ¿Qué supuesto aplica? | §5 de este documento; texto completo en `ALX/pipeline/docs/supuestos.md` |
+| ¿Cómo son las series (estacionariedad, estacionalidad, autocorrelación, calendario, relaciones)? | §6.2 de este documento; detalle en `ALX/eda/03_eda_box_jenkins_v2.ipynb` (Drive): §2–§7 un modelo por sección, §10 conclusiones por modelo |
+| ¿Qué variables explican la serie y cuáles aportan al pronóstico? | §6.2 (tabla por modelo); `ALX/eda/03_eda_box_jenkins_v2.ipynb` §9 |
+| ¿Por qué M5 subestima y qué se podría hacer? | §6.5; `Mi unidad/PoC-Bancolombia/.agents/tasks/eda-m5/final_report.md` y `ALX/eda/04_eda_m5.ipynb` (Drive); `ALX/plan_mejora_m5.md` |
+| ¿Qué supuesto aplica? | §5 de este documento; texto completo en `pipeline/docs/supuestos.md` (registro final) |
+| ¿Qué cambió en la v2 y por qué? | `entrega/CAMBIOS_v2.md`; §4.6, §4.7 y §5 de este documento; los interruptores v2 en `pipeline/conf/alx.yml` |
+| ¿Cómo funciona M6 en la v2 (cajeros de sucursal, traslado T+1, operaciones, costo)? | §4.7; `pipeline/src/daas/modules/funds_m6/dataset.py` y `simulator.py`; SUP-12, SUP-14, SUP-52, SUP-53 |
 
 ### 13.2 Qué no asumir
 
-- **No asumas que `output/api/` del bucket es el resultado vigente.** Es la salida del 9-oct del pipeline de Andrés (Excel `6e781aaa…`). Lo vigente es `entrega/` y `output/pronosticos/v0_provisional/`.
-- **No asumas que una corrida nueva reproduce el sha256 del Excel.** Compara por contenido; la diferencia esperada es 1 celda en el último decimal (F23 de la hoja 03).
+- **No asumas que `output/api/` del bucket es el resultado vigente.** Es la salida del 9-oct del pipeline de Andrés (Excel `6e781aaa…`). Lo vigente es `entrega/` (v2) y `output/pronosticos/v2/` (ver `version_vigente.json`).
+- **No asumas que una corrida nueva reproduce el sha256 del Excel.** Compara por contenido; la diferencia esperada son 1–2 ulp en alguna celda predictiva de M3 en la hoja 03 (F21 o F23) y la fecha de `docProps/core.xml`.
 - **No asumas que las métricas de la hoja 03 son de la prueba ciega.** Son del backtest propio 17–31 ago; las de septiembre las calcula el banco.
 - **No asumas que la mejora de M3 en la hoja 03 es del modelo.** Es casi toda SUP-02 (medición).
 - **No asumas que la imputación está activa.** No se adoptó; `imputacion: false` y encenderlo aborta la corrida. `imputacion/contexto_asof.py` construye contexto, no imputa.
 - **No asumas que `synthetic-data` en registros de Santiago significa datos sintéticos**, ni que su "LightGBM" es LightGBM (es HGB). Los champions de ALX sí usan LightGBM real (4.7.0).
 - **No asumas que M6 es un pronóstico** ni que tiene WAPE.
-- **No asumas que existen los Anexos A, B y C** ni que conoces RN-xx con certeza: se infieren del código y la documentación.
+- **No asumas que los Anexos A, B y C no se recibieron.** Se recibieron (están en `~/Desktop/datos-anexo-poc-bancolombia/` del equipo original, no en el repo); versiones anteriores de este documento decían lo contrario. Lo no recibido son `Historico BANREP.xlsx` e `Historico Traslados.xlsx` del Anexo A (SUP-46).
+- **No asumas que el Excel de `entrega/` es el `52e7547f…`.** Es la v2 `167a52e4…`; la v1 está en el commit `955115d`. Y no asumas que `v0_provisional/` es lo vigente en S3: es la v1 conservada; la v2 está en `output/pronosticos/v2/`.
+- **No uses los supuestos de Andrés** (`revision-andres/`, PDF de supuestos): desde el 26-oct manda el registro propio, que usa otra numeración desde SUP-15.
+- **No asumas que M6 cuesta 0 ni que solo traslada y vende.** En la v2 cuesta 1.441.530 COP e incluye 4 retiros BanRep (§4.7).
 - **No asumas que los perfiles `alx-poc`/`alx-mx` existen en tu equipo** ni que tienes permisos en esos buckets; pide acceso y usa `AWS_PROFILE_RAW`/`AWS_PROFILE` si tus perfiles se llaman distinto.
 - **No asumas otra plataforma que macOS arm64** para `uv.lock`.
 - **No asumas que `ALX/README.md` describe este repo** (es el README de Santiago, con comandos de `corrida_local.sh`, la landing y pruebas que aquí no están).
 - **No asumas que las cifras de la fase 2 (18-oct) son las vigentes:** mandan las del escenario S1 (§4.4). Ante conflicto entre fuentes, manda la más reciente; en `CONTEXTO_CONVERSACION.md`, §20 y §21 mandan sobre las anteriores.
 - **No asumas que hay pruebas automatizadas en el repo.**
+- **No asumas que el notebook 02 (`02_eda_series_box_jenkins.ipynb`) es el EDA vigente.** Lo vigente es `03_eda_box_jenkins_v2.ipynb` (§6.2), y para M5 además `04_eda_m5.ipynb` (§6.5). Ninguno de los dos está en el repo.
 
 ### 13.3 Qué no hacer
 
@@ -923,5 +1041,6 @@ SUP-09 nuevo (reparto de `pagado` de M1/M2 por gavetas y el resto por mezcla de 
 - No ejecutar `aws sso login`, `aws sso logout` ni `aws configure sso`: pedir a la persona que renueve la sesión.
 - No usar como `TRABAJO` una carpeta con contenido valioso: `corrida_entrega.sh` borra `data/` y `conf/` dentro de ella.
 - No correr dentro de Google Drive ni dejar `.venv`, `__pycache__`, `mlruns/` o cachés en carpetas sincronizadas.
-- No mover carpetas del repo ni cambiar `lab/conf/experimentos/`, `pipeline/conf/` o el Excel de `entrega/` sin acuerdo explícito: cambian el entregable y rompen `publicar.py`.
+- No mover carpetas del repo ni cambiar `lab/conf/experimentos/`, `pipeline/conf/` (incluidos los interruptores v2 de `alx.yml`) o el Excel de `entrega/` sin acuerdo explícito: cambian el entregable.
+- No ejecutar `publicacion_s3/publicar.py subir` ni cambiar sus salvaguardas o `PUBLICACIONES` sin pedido explícito; nunca borrar ni sobrescribir `v0_provisional/` ni `v2/`.
 - No poner en 0 los días del Anexo C ni presentar como observado algo estimado (criterios de descarte del pliego).

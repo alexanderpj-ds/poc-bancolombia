@@ -24,3 +24,31 @@ interruptores:
   origen_dato: true
   # Textos de ALX en la hoja 04 (SUP-24 en adelante, laboratorio de ML, procedencia, M6 corregido).
   supuestos_alx: true
+  # --- Correcciones del entregable v2 (26-oct-2026). Valor por defecto de cada una: false (clave ausente = false
+  # = comportamiento del entregable v1). Con las diez en false la corrida reproduce v1.
+  # M6 integra los cajeros administrados por sucursal (admon = SUC) al fondo de su sucursal (Oficinas: ciudad
+  # fondo + transportadora); los no mapeables se declaran con su cifra (SUP-12).
+  m6_cajeros_sucursal: true
+  # M2: tarifa MF interurbano del Anexo E para los MF de TDV con municipio distinto de la ciudad del fondo (RN-04A,
+  # SUP-21).
+  m2_tarifa_interurbana: true
+  # M3: escala de la tarifa interurbana de sucursal desde el campo Escalas de Oficinas (Anexo A, RN-04A; SUP-22).
+  m3_escala_anexo_a: true
+  # Hoja 02: nivel_riesgo medido ANTES de la accion y cupo insuficiente declarado (SUP-42, SUP-44).
+  nivel_riesgo_previo: true
+  # M3: no se recomienda una recoleccion de efectivo ocioso cuyo monto no supera el costo de la visita; la de
+  # exceso sobre el cupo siempre se mantiene. M2: frase en las recolecciones antieconomicas (SUP-43).
+  monto_minimo_recoleccion: true
+  # M6: intercambio y cambio de denominacion deshabilitados dentro del fondo (RN-84, SUP-14).
+  m6_operaciones_rn84: true
+  # M6: el traslado sale del origen en la fecha de ejecucion y esta disponible en el destino al dia siguiente (nota
+  # del Anexo E, Fondos): se ordena el dia anterior al faltante proyectado, con las dos filas en la fecha de
+  # ejecucion (RN-74); un faltante del mismo dia no se cubre con traslado (SUP-52).
+  m6_traslado_t1: true
+  # M6: la explicacion de los traslados con costo declara la tarifa usada (transportadora del fondo origen) y la
+  # alternativa (la del fondo destino); metrica informativa costo_traslado_tarifa_destino (SUP-53). Solo textos.
+  m6_tarifa_traslado_declarada: true
+  # Hoja 04 v2: textos para el evaluador desde export_anexo_d.yml (hoja_04_v2) y su validacion. Exige supuestos_alx.
+  hoja04_v2: true
+  # Hoja 03: comentarios y metodologia_validacion limpios (hoja_03_v2); ningun valor numerico cambia.
+  hoja03_textos_v2: true

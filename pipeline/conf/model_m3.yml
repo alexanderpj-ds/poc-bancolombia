@@ -45,6 +45,15 @@ politica:
   # banco (apertura < umbral -> cupo; recoge solo sobre el cupo), SIN pronostico, en vez de V3. `false` -> V3 con
   # reserva = umbral, objetivo y techo = cupo y decision con pronostico. La explicacion de cada accion lo dice.
   historia_corta_regla_vigente: true
+  # SUP-43: solo con el interruptor `monto_minimo_recoleccion` de conf/alx.yml. Una recoleccion de efectivo
+  # ocioso (saldo al cierre <= cupo) cuyo monto no supera factor_costo x su costo del Anexo E no se recomienda; la
+  # de exceso sobre el cupo (RN-38) siempre se mantiene. factor_costo: float en (0, 10]; ausente = 1.0.
+  # El mismo factor marca en la hoja 02 las recolecciones de M2 antieconomicas (que se mantienen por RN-35).
+  monto_minimo_recoleccion:
+    factor_costo: 1.0
+    textos:
+      omitidas_previas: "Incluye {monto} que no se recogieron el {fechas} porque el monto no superaba el costo de la visita (SUP-43)."
+      exceso_antieconomica: "El monto no supera el costo de la visita, pero se mantiene porque sin ella el saldo superaría el cupo (RN-38)."
 
 # Saldo operativo de la sucursal.
 saldo:
